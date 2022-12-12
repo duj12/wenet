@@ -5,13 +5,13 @@
 
 # Use this to control how many gpu you use, It's 1-gpu training if you specify
 # just 1gpu, otherwise it's is multiple gpu training based on DDP in pytorch
-export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
+export CUDA_VISIBLE_DEVICES="4,5,6,7"
 # The NCCL_SOCKET_IFNAME variable specifies which IP interface to use for nccl
 # communication. More details can be found in
 # https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/env.html
 # export NCCL_SOCKET_IFNAME=ens4f1
 export NCCL_DEBUG=INFO
-stage=0 # start from 0 if you need to start from data preparation
+stage=4 # start from 0 if you need to start from data preparation
 stop_stage=5
 
 # The num of machines(nodes) for multi-machine training, 1 is for one machine.
@@ -24,7 +24,7 @@ num_nodes=1
 node_rank=0
 # The aishell dataset location, please change this to your own path
 # make sure of using absolute path. DO-NOT-USE relatvie path!
-data=/export/data/asr-data/OpenSLR/33/
+data=/data/megastore/Projects/DuJing/data/aishell
 data_url=www.openslr.org/resources/33
 
 nj=16
@@ -44,7 +44,7 @@ train_set=train
 # 4. conf/train_unified_transformer.yaml: Unified dynamic chunk transformer
 # 5. conf/train_u2++_conformer.yaml: U2++ conformer
 # 6. conf/train_u2++_transformer.yaml: U2++ transformer
-train_config=conf/train_conformer.yaml
+train_config=conf/train_u2++_conformer.yaml
 cmvn=true
 dir=exp/conformer
 checkpoint=
@@ -115,12 +115,13 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
   mkdir -p $dir
   # You have to rm `INIT_FILE` manually when you resume or restart a
   # multi-machine training.
+  checkpoint=$dir/151.pt
   INIT_FILE=$dir/ddp_init
   init_method=file://$(readlink -f $INIT_FILE)
   echo "$0: init method is $init_method"
   num_gpus=$(echo $CUDA_VISIBLE_DEVICES | awk -F "," '{print NF}')
   # Use "nccl" if it works, otherwise use "gloo"
-  dist_backend="gloo"
+  dist_backend="nccl"
   world_size=`expr $num_gpus \* $num_nodes`
   echo "total gpus is: $world_size"
   cmvn_opts=
