@@ -249,6 +249,200 @@ def speed_perturb(data, speeds=None):
 
         yield sample
 
+def add_noise_rir(data,
+                  rir_scp = "./data/rir.list",
+                  total_rir = 417,
+                  rir_apply_prob = 0.2,
+                  noise_scp="./data/noise.list",
+                  total_noise = 2556,
+                  noise_apply_prob=0.8,
+                  noise_db_low = 5,
+                  noise_db_high = 15, ):
+    import numpy as np
+    import soundfile, scipy.signal
+    import linecache
+    def framing(
+            x,
+            frame_length: int = 512,
+            frame_shift: int = 256,
+            centered: bool = True,
+            padded: bool = True,
+    ):
+        if x.size == 0:
+            raise ValueError("Input array size is zero")
+        if frame_length < 1:
+            raise ValueError("frame_length must be a positive integer")
+        if frame_length > x.shape[-1]:
+            raise ValueError("frame_length is greater than input length")
+        if 0 >= frame_shift:
+            raise ValueError("frame_shift must be greater than 0")
+
+        if centered:
+            pad_shape = [(0, 0) for _ in range(x.ndim - 1)] + [
+                (frame_length // 2, frame_length // 2)
+            ]
+            x = np.pad(x, pad_shape, mode="constant", constant_values=0)
+
+        if padded:
+            # Pad to integer number of windowed segments
+            # I.e make x.shape[-1] = frame_length + (nseg-1)*nstep,
+            #  with integer nseg
+            nadd = (-(x.shape[-1] - frame_length) % frame_shift) % frame_length
+            pad_shape = [(0, 0) for _ in range(x.ndim - 1)] + [(0, nadd)]
+            x = np.pad(x, pad_shape, mode="constant", constant_values=0)
+
+        # Created strided array of data segments
+        if frame_length == 1 and frame_length == frame_shift:
+            result = x[..., None]
+        else:
+            shape = x.shape[:-1] + (
+                (x.shape[-1] - frame_length) // frame_shift + 1,
+                frame_length,
+            )
+            strides = x.strides[:-1] + (frame_shift * x.strides[-1], x.strides[-1])
+            result = np.lib.stride_tricks.as_strided(x, shape=shape, strides=strides)
+        return result
+    def detect_non_silence(
+            x: np.ndarray,
+            threshold: float = 0.01,
+            frame_length: int = 1024,
+            frame_shift: int = 512,
+            window: str = "boxcar",
+    ) -> np.ndarray:
+        """Power based voice activity detection.
+        Args:
+            x: (Channel, Time)
+        >>> x = np.random.randn(1000)
+        >>> detect = detect_non_silence(x)
+        >>> assert x.shape == detect.shape
+        >>> assert detect.dtype == np.bool
+        """
+        if x.shape[-1] < frame_length:
+            return np.full(x.shape, fill_value=True, dtype=np.bool)
+
+        if x.dtype.kind == "i":
+            x = x.astype(np.float64)
+        # framed_w: (C, T, F)
+        framed_w = framing(
+            x,
+            frame_length=frame_length,
+            frame_shift=frame_shift,
+            centered=False,
+            padded=True,
+        )
+        framed_w *= scipy.signal.get_window(window, frame_length).astype(framed_w.dtype)
+        # power: (C, T)
+        power = (framed_w ** 2).mean(axis=-1)
+        # mean_power: (C, 1)
+        mean_power = np.mean(power, axis=-1, keepdims=True)
+        if np.all(mean_power == 0):
+            return np.full(x.shape, fill_value=True, dtype=np.bool)
+        # detect_frames: (C, T)
+        detect_frames = power / mean_power > threshold
+        # detects: (C, T, F)
+        detects = np.broadcast_to(
+            detect_frames[..., None], detect_frames.shape + (frame_shift,)
+        )
+        # detects: (C, TF)
+        detects = detects.reshape(*detect_frames.shape[:-1], -1)
+        # detects: (C, TF)
+        return np.pad(
+            detects,
+            [(0, 0)] * (x.ndim - 1) + [(0, x.shape[-1] - detects.shape[-1])],
+            mode="edge",
+        )
+
+    def _convolve_rir(rir_scp, total_rir, speech, power):
+        rir_path = linecache.getline(rir_scp, random.randrange(1, total_rir)).strip()
+        rir = None
+        if rir_path is not None and isinstance(rir_path, str) and len(rir_path)>0:
+            rir, _ = soundfile.read(rir_path, dtype=np.float64, always_2d=True)
+
+            # rir: (Nmic, Time)
+            rir = rir.T
+
+            # speech: (Nmic, Time)
+            # Note that this operation doesn't change the signal length
+            speech = scipy.signal.convolve(speech, rir, mode="full")[
+                     :, : speech.shape[1]
+                     ]
+            # Reverse mean power to the original power
+            power2 = (speech[detect_non_silence(speech)] ** 2).mean()
+            speech = np.sqrt(power / max(power2, 1e-10)) * speech
+        return speech, rir
+
+    def _add_noise(noise_scp, total_noise, speech, power, noise_db_low, noise_db_high):
+        nsamples = speech.shape[1]
+        noise_path = linecache.getline(noise_scp, random.randrange(1, total_noise)).strip()
+        noise = None
+        if noise_path is not None and isinstance(noise_path, str) and len(noise_path)>0:
+            noise_db = np.random.uniform(noise_db_low, noise_db_high)
+            with soundfile.SoundFile(noise_path) as f:
+                if f.frames == nsamples:
+                    noise = f.read(dtype=np.float64, always_2d=True)
+                elif f.frames < nsamples:
+                    # if f.frames / nsamples < self.short_noise_thres:
+                    #     logging.warning(
+                    #         f"Noise ({f.frames}) is much shorter than "
+                    #         f"speech ({nsamples}) in dynamic mixing"
+                    #     )
+                    offset = np.random.randint(0, nsamples - f.frames)
+                    # noise: (Time, Nmic)
+                    noise = f.read(dtype=np.float64, always_2d=True)
+                    # Repeat noise
+                    noise = np.pad(
+                        noise,
+                        [(offset, nsamples - f.frames - offset), (0, 0)],
+                        mode="wrap",
+                    )
+                else:
+                    offset = np.random.randint(0, f.frames - nsamples)
+                    f.seek(offset)
+                    # noise: (Time, Nmic)
+                    noise = f.read(nsamples, dtype=np.float64, always_2d=True)
+                    if len(noise) != nsamples:
+                        raise RuntimeError(f"Something wrong: {noise_path}")
+            # noise: (Nmic, Time)
+            noise = noise.T
+
+            noise_power = (noise ** 2).mean()
+            scale = (
+                    10 ** (-noise_db / 20)
+                    * np.sqrt(power)
+                    / np.sqrt(max(noise_power, 1e-10))
+            )
+            speech = speech + scale * noise
+        return speech, noise
+
+    for sample in data:
+        assert 'sample_rate' in sample
+        assert 'wav' in sample
+        sample_rate = sample['sample_rate']
+        speech = sample['wav'].cpu().numpy() if sample['wav'].is_cuda else sample["wav"].numpy()
+        # speech: (Nmic, Time)
+        if speech.ndim == 1:
+            speech = speech[None, :]
+
+        # Calc power on non silence region
+        power = (speech[detect_non_silence(speech)] ** 2).mean()
+
+        # 1. Convolve RIR
+        if total_rir>0 and rir_apply_prob >= np.random.random():
+            speech, _ = _convolve_rir(rir_scp, total_rir, speech, power)
+
+        # 2. Add Noise
+        if (total_noise>0 and noise_apply_prob >= np.random.random()):
+            speech, _ = _add_noise(noise_scp,total_noise,speech, power,noise_db_low,noise_db_high)
+
+        if len(speech.shape) > 1:  # multi-channel
+            speech = speech[0]  # choose first channel
+        ma = np.max(np.abs(speech))
+        if ma > 1.0:
+            speech /= ma
+
+        sample['wav'] = torch.from_numpy(speech).unsqueeze(0).type_as(sample['wav'])
+
+        yield sample
 
 def compute_fbank(data,
                   num_mel_bins=23,

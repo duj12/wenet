@@ -156,6 +156,11 @@ def Dataset(data_type,
     if speed_perturb:
         dataset = Processor(dataset, processor.speed_perturb)
 
+    add_noise_rir = conf.get('add_noise_rir', False)
+    if add_noise_rir:
+        add_noise_rir_conf = conf.get('add_noise_rir_conf', {})
+        dataset = Processor(dataset, processor.add_noise_rir, **add_noise_rir_conf)
+
     feats_type = conf.get('feats_type', 'fbank')
     assert feats_type in ['fbank', 'mfcc']
     if feats_type == 'fbank':

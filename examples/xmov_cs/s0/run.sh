@@ -4,9 +4,9 @@
 
 # Use this to control how many gpu you use, It's 1-gpu training if you specify
 # just 1gpu, otherwise it's is multiple gpu training based on DDP in pytorch
-export CUDA_VISIBLE_DEVICES="0,1,2,3"
+export CUDA_VISIBLE_DEVICES="4,5,6,7"
 stage=4 # start from 0 if you need to start from data preparation
-stop_stage=4
+stop_stage=5
 
 # The NCCL_SOCKET_IFNAME variable specifies which IP interface to use for nccl
 # communication. More details can be found in
@@ -27,24 +27,24 @@ feat_dir=raw_wav
 data_type=raw
 num_utts_per_shard=1000
 prefetch=100
-
+cmvn_sampling_divisor=100  # 20 means 5% of the training data to estimate cmvn
 train_set=train
-dev_set=train
+dev_set=dev
 
 # Optional train_config
 # 1. conf/train_transformer.yaml: Standard transformer
 # 2. conf/train_conformer.yaml: Standard conformer
 # 3. conf/train_unified_conformer.yaml: Unified dynamic chunk causal conformer
 # 4. conf/train_unified_transformer.yaml: Unified dynamic chunk transformer
-train_config=conf/train_conformer.yaml
+train_config=conf/train_u2++_conformer_wavaug.yaml
 # English modeling unit
 # Optional 1. bpe 2. char
 en_modeling_unit=bpe
 dict=data/dict_$en_modeling_unit/lang_char.txt
-cmvn=true
+cmvn=false   # do not use cmvn
 debug=false
 num_workers=2
-dir=exp/conformer
+dir=exp/conformer_wavaug
 checkpoint=
 
 # use average_checkpoint will get better result
@@ -56,12 +56,6 @@ decode_modes="ctc_greedy_search ctc_prefix_beam_search
 
 . tools/parse_options.sh || exit 1;
 
-if [ ${stage} -le 0 ] && [ ${stop_stage} -ge 0 ]; then
-  # Data preparation
-  local/hkust_data_prep.sh /mnt/cfs/database/hkust/LDC2005S15/ \
-    /mnt/cfs/database/hkust/LDC2005T32/ || exit 1;
-fi
-
 
 if [ ${stage} -le 1 ] && [ ${stop_stage} -ge 1 ]; then
   # For wav feature, just copy the data. Fbank extraction is done in training
@@ -70,49 +64,34 @@ if [ ${stage} -le 1 ] && [ ${stop_stage} -ge 1 ]; then
     cp -r data/$x ${feat_dir}_${en_modeling_unit}
   done
 
-  cp -r data/dev ${feat_dir}_${en_modeling_unit}/test
-
-  tools/compute_cmvn_stats.py --num_workers 16 --train_config $train_config \
-    --in_scp data/${train_set}/wav.scp \
-    --out_cmvn ${feat_dir}_${en_modeling_unit}/$train_set/global_cmvn
-
+  cp -r data/test_sjtcs ${feat_dir}_${en_modeling_unit}/test  # only use sjtcs as a test set
 fi
 
-# This bpe model is trained on librispeech training data set.
-bpecode=conf/train_960_unigram5000.model
+if [ ${stage} -le 2 ] && [ ${stop_stage} -ge 2 ]; then
+  echo "Compute cmvn"
+  # Here we use all the training data, you can sample some some data to save time
+  # BUG!!! We should use the segmented data for CMVN
+  if $cmvn; then
+    full_size=`cat data/${train_set}/wav.scp | wc -l`
+    sampling_size=$((full_size / cmvn_sampling_divisor))
+    shuf -n $sampling_size data/$train_set/wav.scp \
+      > data/$train_set/wav.scp.sampled
+    python3 tools/compute_cmvn_stats.py \
+    --num_workers 16 \
+    --train_config $train_config \
+    --in_scp data/$train_set/wav.scp.sampled \
+    --out_cmvn data/$train_set/global_cmvn \
+    || exit 1;
+  fi
+fi
+
+# This bpe model is trained on EspnetASR xmov_cs/asr2 training data set.
+bpecode=conf/zh6300char_en5700bpe.model
 trans_type_ops=
 bpe_ops=
 if [ $en_modeling_unit = "bpe" ]; then
   trans_type_ops="--trans_type cn_char_en_bpe"
   bpe_ops="--bpecode ${bpecode}"
-fi
-
-if [ ${stage} -le 2 ] && [ ${stop_stage} -ge 2 ]; then
-  # Make train dict
-  echo "Make a dictionary"
-  mkdir -p $(dirname $dict)
-  echo "<blank> 0" > ${dict} # 0 will be used for "blank" in CTC
-  echo "<unk> 1" >> ${dict} # <unk> must be 1
-
-  paste -d " " \
-    <(cut -f 1 -d" " ${feat_dir}_${en_modeling_unit}/${train_set}/text) \
-    <(cut -f 2- -d" " ${feat_dir}_${en_modeling_unit}/${train_set}/text \
-    | tr 'a-z' 'A-Z' | sed 's/\([A-Z]\) \([A-Z]\)/\1▁\2/g' \
-    | sed 's/\([A-Z]\) \([A-Z]\)/\1▁\2/g' | tr -d " " ) \
-    > ${feat_dir}_${en_modeling_unit}/${train_set}/text4dict
-  sed -i 's/\xEF\xBB\xBF//' \
-    ${feat_dir}_${en_modeling_unit}/${train_set}/text4dict
-
-  tools/text2token.py -s 1 -n 1 -m ${bpecode} \
-    ${feat_dir}_${en_modeling_unit}/${train_set}/text4dict ${trans_type_ops} \
-    | cut -f 2- -d" " | tr " " "\n" \
-    | sort | uniq | grep -a -v -e '^\s*$' \
-    | grep -v '·' | grep -v '“' | grep -v "”" | grep -v "\[" | grep -v "\]" \
-    | grep -v "…" \
-    | awk '{print $0 " " NR+1}' >> ${dict}
-
-  num_token=$(cat $dict | wc -l)
-  echo "<sos/eos> $num_token" >> $dict # <eos>
 fi
 
 if [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then
@@ -143,7 +122,7 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
   echo "$0: init method is $init_method"
   num_gpus=$(echo $CUDA_VISIBLE_DEVICES | awk -F "," '{print NF}')
   # Use "nccl" if it works, otherwise use "gloo"
-  dist_backend="gloo"
+  dist_backend="nccl"
   # The total number of processes/gpus, so that the master knows
   # how many workers to wait for.
   # More details about ddp can be found in

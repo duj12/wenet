@@ -182,6 +182,7 @@ def main():
     test_conf['filter_conf']['max_output_input_ratio'] = 102400
     test_conf['filter_conf']['min_output_input_ratio'] = 0
     test_conf['speed_perturb'] = False
+    test_conf['add_noise_rir'] = False
     test_conf['spec_aug'] = False
     test_conf['spec_sub'] = False
     test_conf['spec_trim'] = False
