@@ -17,9 +17,9 @@ from contextlib import nullcontext
 
 # if your python version < 3.7 use the below one
 # from contextlib import suppress as nullcontext
-import torch
+import torch, os
 from torch.nn.utils import clip_grad_norm_
-
+from wenet.utils.checkpoint import save_checkpoint
 
 class Executor:
 
@@ -27,7 +27,7 @@ class Executor:
         self.step = 0
 
     def train(self, model, optimizer, scheduler, data_loader, device, writer,
-              args, scaler):
+              args, scaler, cv_data_loader=None):
         ''' Train one epoch
         '''
         model.train()
@@ -40,6 +40,8 @@ class Executor:
         use_amp = args.get('use_amp', False)
         logging.info('using accumulate grad, new batch size is {} times'
                      ' larger than before'.format(accum_grad))
+        save_ckpt_steps = args.get("save_ckpt_steps", 5000)
+        model_dir = args.get("model_dir", None)
         if use_amp:
             assert scaler is not None
         # A context manager to be used in conjunction with an instance of
@@ -107,6 +109,36 @@ class Executor:
                     optimizer.zero_grad()
                     scheduler.step()
                     self.step += 1
+
+                    if self.step % save_ckpt_steps == 0:
+                        if not cv_data_loader is None:
+                            total_loss, num_seen_utts = self.cv(model, cv_data_loader, device, args)
+                            cv_loss = total_loss / num_seen_utts
+                            logging.info('Epoch {} Step {} CV info cv_loss {}'.format(epoch, self.step, cv_loss))
+                            if model_dir is not None and rank == 0:
+                                logging.debug(f"Saved ckpt {epoch} epoch, {self.step} steps.")
+                                save_model_path = os.path.join(model_dir, 'steps_{}.pt'.format(self.step))
+                                save_checkpoint(model, save_model_path,
+                                                {
+                                                    'epoch': epoch,
+                                                    'lr': lr,
+                                                    'cv_loss': cv_loss,
+                                                    'step': self.step
+                                                })
+                                writer.add_scalar('cv_loss', cv_loss, self.step)
+                                writer.add_scalar('lr', lr, self.step)
+                            model.train()
+                        else:
+                            if model_dir is not None and rank == 0:
+                                logging.debug(f"Saved ckpt {epoch} epoch, {self.step} steps.")
+                                save_model_path = os.path.join(model_dir, 'steps_{}.pt'.format(self.step))
+                                save_checkpoint(model, save_model_path,
+                                                {
+                                                    'epoch': epoch,
+                                                    'lr': lr,
+                                                    'step': self.step
+                                                })
+                                writer.add_scalar('lr', lr, self.step)
                 if batch_idx % log_interval == 0:
                     lr = optimizer.param_groups[0]['lr']
                     log_str = 'TRAIN Batch {}/{} loss {:.6f} '.format(
@@ -117,6 +149,7 @@ class Executor:
                             log_str += '{} {:.6f} '.format(name, value.item())
                     log_str += 'lr {:.8f} rank {}'.format(lr, rank)
                     logging.debug(log_str)
+
 
     def cv(self, model, data_loader, device, args):
         ''' Cross validation on

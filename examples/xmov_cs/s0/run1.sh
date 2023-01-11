@@ -4,8 +4,8 @@
 
 # Use this to control how many gpu you use, It's 1-gpu training if you specify
 # just 1gpu, otherwise it's is multiple gpu training based on DDP in pytorch
-export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
-stage=4 # start from 0 if you need to start from data preparation
+export CUDA_VISIBLE_DEVICES="2"
+stage=5 # start from 0 if you need to start from data preparation
 stop_stage=5
 
 # The NCCL_SOCKET_IFNAME variable specifies which IP interface to use for nccl
@@ -50,7 +50,9 @@ checkpoint=
 # use average_checkpoint will get better result
 average_checkpoint=true
 decode_checkpoint=$dir/final.pt
-average_num=10
+average_checkpoint=false
+decode_checkpoint=$dir/10.pt
+average_num=30
 #decode_modes="ctc_greedy_search ctc_prefix_beam_search
 #              attention attention_rescoring"
 decode_modes="attention_rescoring "
@@ -115,7 +117,7 @@ fi
 if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
   # Training
   mkdir -p $dir
-  checkpoint=$dir/11.pt
+  #checkpoint=$dir/7.pt
   INIT_FILE=$dir/ddp_init
   # You had better rm it manually before you start run.sh on first node.
   # rm -f $INIT_FILE # delete old one before starting

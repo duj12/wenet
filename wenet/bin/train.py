@@ -116,7 +116,10 @@ def get_args():
                         type=lambda s: [str(mod) for mod in s.split(",") if s != ""],
                         help="List of encoder modules \
                         to initialize ,separated by a comma")
-
+    parser.add_argument('--save_ckpt_steps',
+                        default=5000,
+                        type=int,
+                        help='num of steps the checkpoint be saved.')
 
     args = parser.parse_args()
     return args
@@ -148,6 +151,7 @@ def main():
     train_conf = configs['dataset_conf']
     cv_conf = copy.deepcopy(train_conf)
     cv_conf['speed_perturb'] = False
+    cv_conf['add_noise_rir'] = False
     cv_conf['spec_aug'] = False
     cv_conf['spec_sub'] = False
     cv_conf['spec_trim'] = False
@@ -272,14 +276,16 @@ def main():
     scaler = None
     if args.use_amp:
         scaler = torch.cuda.amp.GradScaler()
-
+    configs['model_dir'] = args.model_dir
+    if (not 'save_ckpt_steps' in configs) and hasattr(args, "save_ckpt_steps"):
+        configs['save_ckpt_steps'] = args.save_ckpt_steps
     for epoch in range(start_epoch, num_epochs):
         train_dataset.set_epoch(epoch)
         configs['epoch'] = epoch
         lr = optimizer.param_groups[0]['lr']
         logging.info('Epoch {} TRAIN info lr {}'.format(epoch, lr))
         executor.train(model, optimizer, scheduler, train_data_loader, device,
-                       writer, configs, scaler)
+                       writer, configs, scaler, cv_data_loader)
         total_loss, num_seen_utts = executor.cv(model, cv_data_loader, device,
                                                 configs)
         cv_loss = total_loss / num_seen_utts
