@@ -4,8 +4,8 @@
 
 # Use this to control how many gpu you use, It's 1-gpu training if you specify
 # just 1gpu, otherwise it's is multiple gpu training based on DDP in pytorch
-export CUDA_VISIBLE_DEVICES="2"
-stage=5 # start from 0 if you need to start from data preparation
+export CUDA_VISIBLE_DEVICES="4,5,6,7"
+stage=4 # start from 0 if you need to start from data preparation
 stop_stage=5
 
 # The NCCL_SOCKET_IFNAME variable specifies which IP interface to use for nccl
@@ -24,7 +24,7 @@ node_rank=0
 nj=16
 feat_dir=raw_wav
 
-data_type=raw
+data_type=shard
 num_utts_per_shard=1000
 prefetch=100
 cmvn_sampling_divisor=100  # 20 means 5% of the training data to estimate cmvn
@@ -36,7 +36,7 @@ dev_set=dev
 # 2. conf/train_conformer.yaml: Standard conformer
 # 3. conf/train_unified_conformer.yaml: Unified dynamic chunk causal conformer
 # 4. conf/train_unified_transformer.yaml: Unified dynamic chunk transformer
-train_config=conf/train_u2++_conformer_wavaug.yaml
+train_config=conf/train_u2++_conformer_wavaug1.yaml
 # English modeling unit
 # Optional 1. bpe 2. char
 en_modeling_unit=bpe
@@ -44,14 +44,14 @@ dict=data/dict_$en_modeling_unit/lang_char.txt
 cmvn=false   # do not use cmvn
 debug=false
 num_workers=2
-dir=exp/conformer_wavaug
+dir=exp/conformer_wavaug1
 checkpoint=
 
 # use average_checkpoint will get better result
 average_checkpoint=true
 decode_checkpoint=$dir/final.pt
-average_checkpoint=false
-decode_checkpoint=$dir/10.pt
+#average_checkpoint=false
+#decode_checkpoint=$dir/10.pt
 average_num=30
 #decode_modes="ctc_greedy_search ctc_prefix_beam_search
 #              attention attention_rescoring"
@@ -102,7 +102,7 @@ if [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then
   for x in ${dev_set} ${train_set} test; do
     if [ $data_type == "shard" ]; then
       tools/make_shard_list.py --num_utts_per_shard $num_utts_per_shard \
-        --num_threads 16 ${feat_dir}_${en_modeling_unit}/$x/wav.scp \
+        --num_threads 32 ${feat_dir}_${en_modeling_unit}/$x/wav.scp \
         ${feat_dir}_${en_modeling_unit}/$x/text \
         $(realpath ${feat_dir}_${en_modeling_unit}/$x/shards) \
         ${feat_dir}_${en_modeling_unit}/$x/data.list
@@ -149,7 +149,6 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
       --config $train_config \
       --data_type $data_type \
       --symbol_table $dict \
-      --prefetch $prefetch \
       --train_data ${feat_dir}_${en_modeling_unit}/$train_set/data.list \
       --cv_data ${feat_dir}_${en_modeling_unit}/$dev_set/data.list \
       ${checkpoint:+--checkpoint $checkpoint} \
@@ -158,7 +157,7 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
       --ddp.world_size $world_size \
       --ddp.rank $rank \
       --ddp.dist_backend $dist_backend \
-      --num_workers 1 \
+      --num_workers 2 \
       $cmvn_opts \
       --pin_memory \
       --bpe_model ${bpecode}

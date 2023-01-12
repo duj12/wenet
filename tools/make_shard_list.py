@@ -26,7 +26,7 @@ import torch
 import torchaudio
 import torchaudio.backend.sox_io_backend as sox
 
-AUDIO_FORMAT_SETS = set(['flac', 'mp3', 'm4a', 'ogg', 'opus', 'wav', 'wma'])
+AUDIO_FORMAT_SETS = set(['flac', 'mp3', 'm4a', 'ogg', 'opus', 'wav', 'wma', 'WAV'])
 
 
 def write_tar_file(data_list,
@@ -48,7 +48,7 @@ def write_tar_file(data_list,
                 key, txt, wav, start, end = item
 
             suffix = wav.split('.')[-1]
-            assert suffix in AUDIO_FORMAT_SETS
+            assert suffix in AUDIO_FORMAT_SETS, f"make sure your audio format in {AUDIO_FORMAT_SETS}"
             if no_segments:
                 ts = time.time()
                 with open(wav, 'rb') as fin:
@@ -86,7 +86,7 @@ def write_tar_file(data_list,
                 data = f.read()
                 save_time += (time.time() - ts)
 
-            assert isinstance(txt, str)
+            assert isinstance(txt, str), "text context must be STRING."
             ts = time.time()
             txt_file = key + '.txt'
             txt = txt.encode('utf8')
@@ -122,7 +122,7 @@ if __name__ == '__main__':
     parser.add_argument('--resample',
                         type=int,
                         default=16000,
-                        help='segments file')
+                        help='resample_rate')
     parser.add_argument('wav_file', help='wav file')
     parser.add_argument('text_file', help='text file')
     parser.add_argument('shards_dir', help='output shards dir')

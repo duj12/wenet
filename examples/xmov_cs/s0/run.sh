@@ -5,7 +5,7 @@
 # Use this to control how many gpu you use, It's 1-gpu training if you specify
 # just 1gpu, otherwise it's is multiple gpu training based on DDP in pytorch
 export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
-stage=4 # start from 0 if you need to start from data preparation
+stage=5 # start from 0 if you need to start from data preparation
 stop_stage=5
 
 # The NCCL_SOCKET_IFNAME variable specifies which IP interface to use for nccl
@@ -21,10 +21,9 @@ num_nodes=1
 # the third one set node_rank 2, and so on. Default 0
 node_rank=0
 
-nj=16
 feat_dir=raw_wav
 
-data_type=raw
+data_type=shard
 num_utts_per_shard=1000
 prefetch=100
 cmvn_sampling_divisor=100  # 20 means 5% of the training data to estimate cmvn
@@ -48,8 +47,9 @@ dir=exp/conformer_wavaug
 checkpoint=
 
 # use average_checkpoint will get better result
-average_checkpoint=true
-decode_checkpoint=$dir/final.pt
+average_checkpoint=false
+decode_checkpoint=$dir/10.pt
+decode_nj=64
 average_num=10
 #decode_modes="ctc_greedy_search ctc_prefix_beam_search
 #              attention attention_rescoring"
@@ -97,10 +97,10 @@ fi
 if [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then
   # Prepare wenet required data
   echo "Prepare data, prepare required format"
-  for x in ${dev_set} ${train_set} test; do
+  for x in ${dev_set} ${train_set} ; do
     if [ $data_type == "shard" ]; then
       tools/make_shard_list.py --num_utts_per_shard $num_utts_per_shard \
-        --num_threads 16 ${feat_dir}_${en_modeling_unit}/$x/wav.scp \
+        --num_threads 32 ${feat_dir}_${en_modeling_unit}/$x/wav.scp \
         ${feat_dir}_${en_modeling_unit}/$x/text \
         $(realpath ${feat_dir}_${en_modeling_unit}/$x/shards) \
         ${feat_dir}_${en_modeling_unit}/$x/data.list
@@ -109,6 +109,11 @@ if [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then
       ${feat_dir}_${en_modeling_unit}/$x/text \
       ${feat_dir}_${en_modeling_unit}/$x/data.list
     fi
+  done
+  for x in test ; do
+    tools/make_raw_list.py ${feat_dir}_${en_modeling_unit}/$x/wav.scp \
+    ${feat_dir}_${en_modeling_unit}/$x/text \
+    ${feat_dir}_${en_modeling_unit}/$x/data.list
   done
 fi
 
@@ -147,7 +152,6 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
       --config $train_config \
       --data_type $data_type \
       --symbol_table $dict \
-      --prefetch $prefetch \
       --train_data ${feat_dir}_${en_modeling_unit}/$train_set/data.list \
       --cv_data ${feat_dir}_${en_modeling_unit}/$dev_set/data.list \
       ${checkpoint:+--checkpoint $checkpoint} \
@@ -156,7 +160,7 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
       --ddp.world_size $world_size \
       --ddp.rank $rank \
       --ddp.dist_backend $dist_backend \
-      --num_workers 1 \
+      --num_workers 8 \
       $cmvn_opts \
       --pin_memory \
       --bpe_model ${bpecode}
@@ -182,17 +186,33 @@ if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
   ctc_weight=0.5
   idx=0
   reverse_weight=0.0
+
+  nj=$decode_nj
   for mode in ${decode_modes}; do
   {
     test_dir="$dir/"`
       `"test_${mode}${decoding_chunk_size:+_chunk$decoding_chunk_size}/test"
     mkdir -p $test_dir
+    mkdir -p $test_dir/split${nj}
+
+    # Step 1. Split wav.scp
+    split_scps=""
+    for n in $(seq ${nj}); do
+      split_scps="${split_scps} ${test_dir}/split${nj}/data.${n}.list"
+    done
+    scp=${feat_dir}_${en_modeling_unit}/test/data.list
+    tools/data/split_scp.pl ${scp} ${split_scps}
+
+    num_gpus=$(echo $CUDA_VISIBLE_DEVICES | awk -F "," '{print NF}')
+    # Step 2. Parallel decoding
+    for n in $(seq ${nj}); do
+    {
     gpu_id=$(echo $CUDA_VISIBLE_DEVICES | cut -d',' -f$[$idx+1])
     python wenet/bin/recognize.py --gpu $gpu_id \
       --mode $mode \
       --config $dir/train.yaml \
-      --data_type $data_type \
-      --test_data ${feat_dir}_${en_modeling_unit}/test/data.list \
+      --data_type "raw" \
+      --test_data  "${test_dir}/split${nj}/data.${n}.list" \
       --checkpoint $decode_checkpoint \
       --beam_size 10 \
       --batch_size 1 \
@@ -200,8 +220,23 @@ if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
       --dict $dict \
       --ctc_weight $ctc_weight \
       --reverse_weight $reverse_weight \
-      --result_file $test_dir/text_${en_modeling_unit} \
-      ${decoding_chunk_size:+--decoding_chunk_size $decoding_chunk_size}
+      ${decoding_chunk_size:+--decoding_chunk_size $decoding_chunk_size} \
+      --bpe_model ${bpecode} \
+      --result_file $test_dir/split${nj}/${n}.text_${en_modeling_unit} \
+      &> ${test_dir}/split${nj}/${n}.log
+    } &
+    ((idx+=1))
+    if [[ $idx -ge $num_gpus ]]; then
+      idx=0
+    fi
+    done
+    wait
+
+    # Step 3. Merge files
+    for n in $(seq ${nj}); do
+      cat ${test_dir}/split${nj}/${n}.text_${en_modeling_unit}
+    done > ${test_dir}/text_${en_modeling_unit}
+
     if [ $en_modeling_unit == "bpe" ]; then
       tools/spm_decode --model=${bpecode} --input_format=piece \
       < $test_dir/text_${en_modeling_unit} | sed -e "s/▁/ /g" > $test_dir/text
@@ -213,7 +248,6 @@ if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
     python tools/compute-cer.py --char=1 --v=1 \
       ${feat_dir}_${en_modeling_unit}/test/text $test_dir/text > $test_dir/wer
   } &
-  ((idx+=1))
   done
   wait
 fi

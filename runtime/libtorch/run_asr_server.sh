@@ -31,7 +31,7 @@ if [ ! -z $fst_path ]; then
   echo $wfst_decode_opts > ./wfst_config.txt
 fi
 
-./build/bin/websocket_server_main \
+CUDA_VISIBLE_DEVICES="2" ./build/bin/websocket_server_main \
     --port 10086 \
     --chunk_size 16 $wfst_decode_opts \
     --ctc_weight 0.5 --rescoring_weight 1.0 \
