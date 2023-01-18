@@ -5,8 +5,8 @@
 # Use this to control how many gpu you use, It's 1-gpu training if you specify
 # just 1gpu, otherwise it's is multiple gpu training based on DDP in pytorch
 export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
-stage=5 # start from 0 if you need to start from data preparation
-stop_stage=5
+stage=3 # start from 0 if you need to start from data preparation
+stop_stage=3
 
 # The NCCL_SOCKET_IFNAME variable specifies which IP interface to use for nccl
 # communication. More details can be found in
@@ -49,11 +49,18 @@ checkpoint=
 # use average_checkpoint will get better result
 average_checkpoint=false
 decode_checkpoint=$dir/10.pt
-decode_nj=64
+decode_nj=32
 average_num=10
 #decode_modes="ctc_greedy_search ctc_prefix_beam_search
 #              attention attention_rescoring"
 decode_modes="attention_rescoring "
+context_path="data/hot_words.txt"
+if [ ! -z $context_path ]; then
+  decode_suffix="with_context"
+else
+  decode_suffix=
+fi
+
 . tools/parse_options.sh || exit 1;
 
 
@@ -97,7 +104,7 @@ fi
 if [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then
   # Prepare wenet required data
   echo "Prepare data, prepare required format"
-  for x in ${dev_set} ${train_set} ; do
+  for x in train1 ; do #${dev_set} ${train_set} ; do
     if [ $data_type == "shard" ]; then
       tools/make_shard_list.py --num_utts_per_shard $num_utts_per_shard \
         --num_threads 32 ${feat_dir}_${en_modeling_unit}/$x/wav.scp \
@@ -120,7 +127,7 @@ fi
 if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
   # Training
   mkdir -p $dir
-  checkpoint=$dir/11.pt
+  checkpoint=$dir/12.pt
   INIT_FILE=$dir/ddp_init
   # You had better rm it manually before you start run.sh on first node.
   # rm -f $INIT_FILE # delete old one before starting
@@ -160,7 +167,7 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
       --ddp.world_size $world_size \
       --ddp.rank $rank \
       --ddp.dist_backend $dist_backend \
-      --num_workers 8 \
+      --num_workers 2 \
       $cmvn_opts \
       --pin_memory \
       --bpe_model ${bpecode}
@@ -281,28 +288,32 @@ if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
   tools/fst/make_tlg.sh data/local/lm data/local/lang data/lang_test || exit 1;
   fi
   # 7.4 Decoding with runtime
-  use_lm=1
+  use_lm=0
   if [ $use_lm -eq 1 ]; then
   echo "decode with TLG.fst.."
   chunk_size=16
-  ./tools/decode.sh --nj 16 \
+  ./tools/decode.sh --nj 16  --frame_shift 100 \
     --beam 15.0 --lattice_beam 7.5 --max_active 7000 \
     --blank_skip_thresh 0.98 --ctc_weight 0.5 --rescoring_weight 1.0 \
     --chunk_size $chunk_size \
     --fst_path data/lang_test/TLG.fst \
     --dict_path data/lang_test/words.txt \
+    --context_path $context_path \
+    --context_score 3 \
     data/test/wav.scp data/test/text $dir/final.zip \
-    data/lang_test/units.txt $dir/lm_with_runtime_${chunk_size}
+    data/lang_test/units.txt $dir/lm_with_runtime_${chunk_size}_${decode_suffix}
   # Please see $dir/lm_with_runtime for wer
   elif [ $use_lm -eq 0 ]; then
   echo "decode without TLG.fst.."
   chunk_size=16
-  ./tools/decode.sh --nj 16 \
+  ./tools/decode.sh --nj 16 --frame_shift 100 \
     --beam 15.0 --lattice_beam 7.5 --max_active 7000 \
     --blank_skip_thresh 0.98 --ctc_weight 0.5  --rescoring_weight 1.0 \
     --chunk_size $chunk_size \
+    --context_path $context_path \
+    --context_score 3 \
     data/test/wav.scp data/test/text $dir/final.zip \
-    $dict $dir/runtime_${chunk_size}
+    $dict $dir/runtime_${chunk_size}_${decode_suffix}
   # Please see $dir/runtime for wer
   fi
 fi

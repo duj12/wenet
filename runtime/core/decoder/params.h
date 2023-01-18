@@ -55,6 +55,8 @@ DEFINE_string(bpu_model_dir, "",
 // FeaturePipelineConfig flags
 DEFINE_int32(num_bins, 80, "num mel bins for fbank feature");
 DEFINE_int32(sample_rate, 16000, "sample rate for audio");
+DEFINE_int32(frame_length, 400, "frame length in ms for fbank feature");
+DEFINE_int32(frame_shift, 100, "frame shift in ms for fbank feature");
 
 // TLG fst
 DEFINE_string(fst_path, "", "TLG fst path");
@@ -104,7 +106,7 @@ DEFINE_bool(lowercase, true, "lowercase final result if needed");
 namespace wenet {
 std::shared_ptr<FeaturePipelineConfig> InitFeaturePipelineConfigFromFlags() {
   auto feature_config = std::make_shared<FeaturePipelineConfig>(
-      FLAGS_num_bins, FLAGS_sample_rate);
+      FLAGS_num_bins, FLAGS_sample_rate, FLAGS_frame_length, FLAGS_frame_shift);
   return feature_config;
 }
 

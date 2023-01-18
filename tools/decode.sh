@@ -7,6 +7,8 @@ export GLOG_v=2
 set -e
 
 nj=1
+frame_shift=160   #add different frame_shift support
+frame_length=400
 chunk_size=-1
 ctc_weight=0.0
 reverse_weight=0.0
@@ -22,6 +24,11 @@ max_active=7000
 blank_skip_thresh=1.0
 length_penalty=0.0
 
+#context_biasing related
+context_path=
+context_score=3
+
+
 . tools/parse_options.sh || exit 1;
 if [ $# != 5 ]; then
   echo "Usage: $0 [options] <wav.scp> <label_file> <model_file> <unit_file> <output_dir>"
@@ -31,6 +38,9 @@ fi
 if ! which decoder_main > /dev/null; then
   echo "decoder_main is not built, please go to runtime/libtorch to build it."
   exit 1;
+else
+  decoder_tool=`which decoder_main`
+  echo decoder path is $decoder_tool
 fi
 
 scp=$1
@@ -64,7 +74,7 @@ if [ ! -z $fst_path ]; then
 fi
 for n in $(seq ${nj}); do
 {
-  decoder_main \
+  decoder_main --frame_shift $frame_shift \
      --rescoring_weight $rescoring_weight \
      --ctc_weight $ctc_weight \
      --reverse_weight $reverse_weight \
@@ -72,6 +82,8 @@ for n in $(seq ${nj}); do
      --wav_scp ${dir}/split${nj}/wav.${n}.scp \
      --model_path $model_file \
      --unit_path $unit_file \
+     --context_path $context_path \
+     --context_score $context_score \
      $wfst_decode_opts \
      --result ${dir}/split${nj}/${n}.text &> ${dir}/split${nj}/${n}.log
 } &

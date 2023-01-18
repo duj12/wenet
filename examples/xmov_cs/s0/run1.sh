@@ -6,7 +6,7 @@
 # just 1gpu, otherwise it's is multiple gpu training based on DDP in pytorch
 export CUDA_VISIBLE_DEVICES="4,5,6,7"
 stage=4 # start from 0 if you need to start from data preparation
-stop_stage=5
+stop_stage=4
 
 # The NCCL_SOCKET_IFNAME variable specifies which IP interface to use for nccl
 # communication. More details can be found in
@@ -21,7 +21,6 @@ num_nodes=1
 # the third one set node_rank 2, and so on. Default 0
 node_rank=0
 
-nj=16
 feat_dir=raw_wav
 
 data_type=shard
@@ -52,10 +51,18 @@ average_checkpoint=true
 decode_checkpoint=$dir/final.pt
 #average_checkpoint=false
 #decode_checkpoint=$dir/10.pt
-average_num=30
+decode_nj=32
+average_num=10
 #decode_modes="ctc_greedy_search ctc_prefix_beam_search
 #              attention attention_rescoring"
 decode_modes="attention_rescoring "
+context_path="data/hot_words.txt"
+if [ ! -z $context_path ]; then
+  decode_suffix="with_context"
+else
+  decode_suffix=
+fi
+
 . tools/parse_options.sh || exit 1;
 
 
@@ -99,7 +106,7 @@ fi
 if [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then
   # Prepare wenet required data
   echo "Prepare data, prepare required format"
-  for x in ${dev_set} ${train_set} test; do
+  for x in ${dev_set} ${train_set} ; do
     if [ $data_type == "shard" ]; then
       tools/make_shard_list.py --num_utts_per_shard $num_utts_per_shard \
         --num_threads 32 ${feat_dir}_${en_modeling_unit}/$x/wav.scp \
@@ -112,12 +119,17 @@ if [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then
       ${feat_dir}_${en_modeling_unit}/$x/data.list
     fi
   done
+  for x in test ; do
+    tools/make_raw_list.py ${feat_dir}_${en_modeling_unit}/$x/wav.scp \
+    ${feat_dir}_${en_modeling_unit}/$x/text \
+    ${feat_dir}_${en_modeling_unit}/$x/data.list
+  done
 fi
 
 if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
   # Training
   mkdir -p $dir
-  #checkpoint=$dir/7.pt
+  checkpoint=$dir/1.pt
   INIT_FILE=$dir/ddp_init
   # You had better rm it manually before you start run.sh on first node.
   # rm -f $INIT_FILE # delete old one before starting
@@ -183,17 +195,33 @@ if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
   ctc_weight=0.5
   idx=0
   reverse_weight=0.0
+
+  nj=$decode_nj
   for mode in ${decode_modes}; do
   {
     test_dir="$dir/"`
       `"test_${mode}${decoding_chunk_size:+_chunk$decoding_chunk_size}/test"
     mkdir -p $test_dir
+    mkdir -p $test_dir/split${nj}
+
+    # Step 1. Split wav.scp
+    split_scps=""
+    for n in $(seq ${nj}); do
+      split_scps="${split_scps} ${test_dir}/split${nj}/data.${n}.list"
+    done
+    scp=${feat_dir}_${en_modeling_unit}/test/data.list
+    tools/data/split_scp.pl ${scp} ${split_scps}
+
+    num_gpus=$(echo $CUDA_VISIBLE_DEVICES | awk -F "," '{print NF}')
+    # Step 2. Parallel decoding
+    for n in $(seq ${nj}); do
+    {
     gpu_id=$(echo $CUDA_VISIBLE_DEVICES | cut -d',' -f$[$idx+1])
     python wenet/bin/recognize.py --gpu $gpu_id \
       --mode $mode \
       --config $dir/train.yaml \
-      --data_type $data_type \
-      --test_data ${feat_dir}_${en_modeling_unit}/test/data.list \
+      --data_type "raw" \
+      --test_data  "${test_dir}/split${nj}/data.${n}.list" \
       --checkpoint $decode_checkpoint \
       --beam_size 10 \
       --batch_size 1 \
@@ -201,8 +229,23 @@ if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
       --dict $dict \
       --ctc_weight $ctc_weight \
       --reverse_weight $reverse_weight \
-      --result_file $test_dir/text_${en_modeling_unit} \
-      ${decoding_chunk_size:+--decoding_chunk_size $decoding_chunk_size}
+      ${decoding_chunk_size:+--decoding_chunk_size $decoding_chunk_size} \
+      --bpe_model ${bpecode} \
+      --result_file $test_dir/split${nj}/${n}.text_${en_modeling_unit} \
+      &> ${test_dir}/split${nj}/${n}.log
+    } &
+    ((idx+=1))
+    if [[ $idx -ge $num_gpus ]]; then
+      idx=0
+    fi
+    done
+    wait
+
+    # Step 3. Merge files
+    for n in $(seq ${nj}); do
+      cat ${test_dir}/split${nj}/${n}.text_${en_modeling_unit}
+    done > ${test_dir}/text_${en_modeling_unit}
+
     if [ $en_modeling_unit == "bpe" ]; then
       tools/spm_decode --model=${bpecode} --input_format=piece \
       < $test_dir/text_${en_modeling_unit} | sed -e "s/▁/ /g" > $test_dir/text
@@ -214,7 +257,6 @@ if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
     python tools/compute-cer.py --char=1 --v=1 \
       ${feat_dir}_${en_modeling_unit}/test/text $test_dir/text > $test_dir/wer
   } &
-  ((idx+=1))
   done
   wait
 fi
@@ -252,24 +294,28 @@ if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
   if [ $use_lm -eq 1 ]; then
   echo "decode with TLG.fst.."
   chunk_size=16
-  ./tools/decode.sh --nj 16 \
+  ./tools/decode.sh --nj 16  --frame_shift 100 \
     --beam 15.0 --lattice_beam 7.5 --max_active 7000 \
     --blank_skip_thresh 0.98 --ctc_weight 0.5 --rescoring_weight 1.0 \
     --chunk_size $chunk_size \
     --fst_path data/lang_test/TLG.fst \
     --dict_path data/lang_test/words.txt \
+    --context_path $context_path \
+    --context_score 3 \
     data/test/wav.scp data/test/text $dir/final.zip \
-    data/lang_test/units.txt $dir/lm_with_runtime_${chunk_size}
+    data/lang_test/units.txt $dir/lm_with_runtime_${chunk_size}_${decode_suffix}
   # Please see $dir/lm_with_runtime for wer
   elif [ $use_lm -eq 0 ]; then
   echo "decode without TLG.fst.."
   chunk_size=16
-  ./tools/decode.sh --nj 16 \
+  ./tools/decode.sh --nj 16 --frame_shift 100 \
     --beam 15.0 --lattice_beam 7.5 --max_active 7000 \
     --blank_skip_thresh 0.98 --ctc_weight 0.5  --rescoring_weight 1.0 \
     --chunk_size $chunk_size \
+    --context_path $context_path \
+    --context_score 3 \
     data/test/wav.scp data/test/text $dir/final.zip \
-    $dict $dir/runtime_${chunk_size}
+    $dict $dir/runtime_${chunk_size}_${decode_suffix}
   # Please see $dir/runtime for wer
   fi
 fi

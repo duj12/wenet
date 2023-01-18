@@ -41,7 +41,7 @@ model_conf:
 
 dataset_conf:
     filter_conf:
-        max_length: 1200
+        max_length: 1500
         min_length: 10
         token_max_length: 160
         token_min_length: 1
@@ -84,17 +84,17 @@ dataset_conf:
         sort_size: 500  # sort_size should be less than shuffle_size
     batch_conf:
         batch_type: 'static' # static or dynamic
-        batch_size: 32
+        batch_size: 64
 
 
 grad_clip: 5
-accum_grad: 16
+accum_grad: 4
 max_epoch: 50
 log_interval: 100
-save_ckpt_steps: 2000  # *accum_grad = batch nums
+save_ckpt_steps: 8000   # *accum_grad = batch nums
 optim: adam
 optim_conf:
-    lr: 0.001
+    lr: 0.0005
 scheduler: warmuplr     # pytorch v1.1.0+ required
 scheduler_conf:
     warmup_steps: 25000

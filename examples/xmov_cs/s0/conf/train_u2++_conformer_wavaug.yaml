@@ -41,8 +41,8 @@ model_conf:
 
 dataset_conf:
     filter_conf:
-        max_length: 1200
-        min_length: 10
+        max_length: 2000  #(in 10ms)
+        min_length: 10  #(in 10ms)
         token_max_length: 160
         token_min_length: 1
     resample_conf:
@@ -67,8 +67,8 @@ dataset_conf:
     spec_aug_conf:
         num_t_mask: 2
         num_f_mask: 2
-        max_t: 30
-        max_f: 20
+        max_t: 50
+        max_f: 30
     spec_sub: false
     spec_sub_conf:
         num_t_sub: 3
@@ -84,7 +84,7 @@ dataset_conf:
         sort_size: 500  # sort_size should be less than shuffle_size
     batch_conf:
         batch_type: 'static' # static or dynamic
-        batch_size: 50
+        batch_size: 32   #increase max_length, decrease batch
 
 
 grad_clip: 5

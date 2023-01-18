@@ -5,14 +5,14 @@
 
 # Use this to control how many gpu you use, It's 1-gpu training if you specify
 # just 1gpu, otherwise it's is multiple gpu training based on DDP in pytorch
-export CUDA_VISIBLE_DEVICES="7"
+export CUDA_VISIBLE_DEVICES="6"
 # The NCCL_SOCKET_IFNAME variable specifies which IP interface to use for nccl
 # communication. More details can be found in
 # https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/env.html
 # export NCCL_SOCKET_IFNAME=ens4f1
 export NCCL_DEBUG=INFO
-stage=4 # start from 0 if you need to start from data preparation
-stop_stage=5
+stage=7 # start from 0 if you need to start from data preparation
+stop_stage=7
 
 # The num of machines(nodes) for multi-machine training, 1 is for one machine.
 # NFS is required if num_nodes > 1.
@@ -232,6 +232,8 @@ if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
   tools/fst/make_tlg.sh data/local/lm data/local/lang data/lang_test || exit 1;
   fi
   # 7.4 Decoding with runtime
+  use_lm=0
+  if [ $use_lm -eq 1 ]; then
   echo "decode with TLG.fst.."
   chunk_size=16
   ./tools/decode.sh --nj 16 \
@@ -243,6 +245,17 @@ if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
     data/test/wav.scp data/test/text $dir/final.zip \
     data/lang_test/units.txt $dir/lm_with_runtime_${chunk_size}
   # Please see $dir/lm_with_runtime for wer
+  elif [ $use_lm -eq 0 ]; then
+  echo "decode without TLG.fst.."
+  chunk_size=16
+  ./tools/decode.sh --nj 16 \
+    --beam 15.0 --lattice_beam 7.5 --max_active 7000 \
+    --blank_skip_thresh 0.98 --ctc_weight 0.5  --rescoring_weight 1.0 \
+    --chunk_size $chunk_size \
+    data/test/wav.scp data/test/text $dir/final.zip \
+    $dict $dir/runtime_${chunk_size}
+  # Please see $dir/runtime for wer
+  fi
 fi
 
 # Optionally, you can decode with k2 hlg

@@ -283,14 +283,17 @@ def main():
         train_dataset.set_epoch(epoch)
         configs['epoch'] = epoch
         lr = optimizer.param_groups[0]['lr']
-        logging.info('Epoch {} TRAIN info lr {}'.format(epoch, lr))
+        logging.info('Epoch {} TRAIN info init lr {}'.format(epoch, lr))
         executor.train(model, optimizer, scheduler, train_data_loader, device,
-                       writer, configs, scaler, cv_data_loader)
+                       writer, configs, scaler)
         total_loss, num_seen_utts = executor.cv(model, cv_data_loader, device,
                                                 configs)
         cv_loss = total_loss / num_seen_utts
 
         logging.info('Epoch {} CV info cv_loss {}'.format(epoch, cv_loss))
+
+        lr = optimizer.param_groups[0]['lr']
+        logging.info('Epoch {} TRAIN info final lr {}'.format(epoch, lr))
         if args.rank == 0:
             save_model_path = os.path.join(model_dir, '{}.pt'.format(epoch))
             save_checkpoint(
