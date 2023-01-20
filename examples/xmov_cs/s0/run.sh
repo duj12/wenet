@@ -5,8 +5,8 @@
 # Use this to control how many gpu you use, It's 1-gpu training if you specify
 # just 1gpu, otherwise it's is multiple gpu training based on DDP in pytorch
 export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
-stage=3 # start from 0 if you need to start from data preparation
-stop_stage=3
+stage=4 # start from 0 if you need to start from data preparation
+stop_stage=4
 
 # The NCCL_SOCKET_IFNAME variable specifies which IP interface to use for nccl
 # communication. More details can be found in
@@ -104,7 +104,7 @@ fi
 if [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then
   # Prepare wenet required data
   echo "Prepare data, prepare required format"
-  for x in train1 ; do #${dev_set} ${train_set} ; do
+  for x in ${dev_set} ${train_set} ; do
     if [ $data_type == "shard" ]; then
       tools/make_shard_list.py --num_utts_per_shard $num_utts_per_shard \
         --num_threads 32 ${feat_dir}_${en_modeling_unit}/$x/wav.scp \
@@ -127,7 +127,7 @@ fi
 if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
   # Training
   mkdir -p $dir
-  checkpoint=$dir/12.pt
+  checkpoint=$dir/15.pt
   INIT_FILE=$dir/ddp_init
   # You had better rm it manually before you start run.sh on first node.
   # rm -f $INIT_FILE # delete old one before starting

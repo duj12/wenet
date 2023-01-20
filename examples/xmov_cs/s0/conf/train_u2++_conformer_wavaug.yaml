@@ -67,8 +67,8 @@ dataset_conf:
     spec_aug_conf:
         num_t_mask: 2
         num_f_mask: 2
-        max_t: 50
-        max_f: 30
+        max_t: 30
+        max_f: 20
     spec_sub: false
     spec_sub_conf:
         num_t_sub: 3
