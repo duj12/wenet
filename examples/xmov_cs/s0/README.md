@@ -27,6 +27,9 @@
 | attention rescoring      | 20.42 |
 
 ## Make BIG n-gram LM
+
+细节可以参考http://fancyerii.github.io/dev287x/lm/
+
 一、小数据
 
 假设有去除特殊符号的训练文本trainfile.txt，以及测试文本testfile.txt，那么训练一个语言模型以及对其进行评测的步骤如下：
