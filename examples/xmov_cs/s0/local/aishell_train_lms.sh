@@ -54,6 +54,6 @@ cat $cleantext | awk '{for(n=2;n<=NF;n++){ printf $n; if(n<NF) printf " "; else 
 cat $cleantext | awk '{for(n=2;n<=NF;n++){ printf $n; if(n<NF) printf " "; else print ""; }}' | \
   tail -n +$heldout_sent > $dir/train
 
-ngram-count -text $dir/train -order 3 -limit-vocab -vocab $dir/wordlist -unk \
+ngram-count -text $dir/train -order 4 -limit-vocab -vocab $dir/wordlist -unk \
   -map-unk "<UNK>" -kndiscount -interpolate -lm $dir/lm.arpa
 ngram -lm $dir/lm.arpa -ppl $dir/heldout

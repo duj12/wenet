@@ -4,7 +4,8 @@ from preprocess import (
     remove_space_between_mandarin,
     remove_redundant_whitespaces,
 )
-import jieba
+import pkuseg  #目前pkuseg还有分词bug，会分出词表中不存在的词。
+
 
 if __name__ == '__main__':
     import sys
@@ -24,20 +25,21 @@ if __name__ == '__main__':
     if len(sys.argv) > 4:
         has_name = int(sys.argv[4])
 
-    jieba.load_userdict(user_dict)
+    seg = pkuseg.pkuseg(user_dict=user_dict)
+
     for line in fin:
         if has_name:
             line = line.strip().split(' ')
             name = line[0]
             text = ' '.join(line[1:])
             new_text = remove_space_between_mandarin(text)
-            new_text = ' '.join(jieba.lcut(new_text))
+            new_text = ' '.join(seg.cut(new_text))
             new_text = remove_redundant_whitespaces(new_text)
             fout.write(name + ' ' + new_text + '\n')
         else:
             text = line.strip()
             new_text = remove_space_between_mandarin(text)
-            new_text = ' '.join(jieba.lcut(new_text))
+            new_text = ' '.join(seg.cut(new_text))
             new_text = remove_redundant_whitespaces(new_text)
             fout.write(new_text + '\n')
 

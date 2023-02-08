@@ -108,16 +108,19 @@ void CtcWfstBeamSearch::Search(const std::vector<std::vector<float>>& logp) {
   inputs_.clear();
   outputs_.clear();
   likelihood_.clear();
+  times_.clear(); //dujing modified.
   if (decoded_frames_mapping_.size() > 0) {
     inputs_.resize(1);
     outputs_.resize(1);
     likelihood_.resize(1);
+    times_.resize(1); 
     kaldi::Lattice lat;
     decoder_.GetBestPath(&lat, false);
     std::vector<int> alignment;
     kaldi::LatticeWeight weight;
     fst::GetLinearSymbolSequence(lat, &alignment, &outputs_[0], &weight);
-    ConvertToInputs(alignment, &inputs_[0]);
+    //ConvertToInputs(alignment, &inputs_[0]);
+    ConvertToInputs(alignment, &inputs_[0], &times_[0]);   //dujing modified
     RemoveContinuousTags(&outputs_[0]);
     VLOG(3) << weight.Value1() << " " << weight.Value2();
     likelihood_[0] = -(weight.Value1() + weight.Value2());

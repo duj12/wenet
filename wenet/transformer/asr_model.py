@@ -416,6 +416,130 @@ class ASRModel(torch.nn.Module):
         hyps = [(y[0], log_add([y[1][0], y[1][1]])) for y in cur_hyps]
         return hyps, encoder_out
 
+    def _ctc_nnlm_beam_search(
+        self,
+        speech: torch.Tensor,
+        speech_lengths: torch.Tensor,
+        beam_size: int,
+        decoding_chunk_size: int = -1,
+        num_decoding_left_chunks: int = -1,
+        simulate_streaming: bool = False,
+        lm: torch.nn.Module = None,
+        lm_weight: float = 0.3,
+        pre_beam_scale: float = 2.0,
+        length_bonus: float = 2.0
+    ) -> Tuple[List[List[int]], torch.Tensor]:
+        """ CTC prefix beam search with Neural Network Language Model inner implementation
+
+        Args:
+            speech (torch.Tensor): (batch, max_len, feat_dim)
+            speech_length (torch.Tensor): (batch, )
+            beam_size (int): beam size for beam search
+            decoding_chunk_size (int): decoding chunk for dynamic chunk
+                trained model.
+                <0: for decoding, use full chunk.
+                >0: for decoding, use fixed chunk size as set.
+                0: used for training, it's prohibited here
+            simulate_streaming (bool): whether do encoder forward in a
+                streaming fashion
+            lm: neural network language model, here we use ESPnet LM
+            lm_weight: the weight of lm scores
+
+        Returns:
+            List[List[int]]: nbest results
+            torch.Tensor: encoder output, (1, max_len, encoder_dim),
+                it will be used for rescoring in attention rescoring mode
+        """
+        assert speech.shape[0] == speech_lengths.shape[0]
+        assert decoding_chunk_size != 0
+        batch_size = speech.shape[0]
+        # For CTC prefix beam search, we only support batch_size=1
+        assert batch_size == 1
+        # Let's assume B = batch_size and N = beam_size
+        # 1. Encoder forward and get CTC score
+        encoder_out, encoder_mask = self._forward_encoder(
+            speech, speech_lengths, decoding_chunk_size,
+            num_decoding_left_chunks,
+            simulate_streaming)  # (B, maxlen, encoder_dim)
+        maxlen = encoder_out.size(1)
+        ctc_probs = self.ctc.log_softmax(
+            encoder_out)  # (1, maxlen, vocab_size)
+        ctc_probs = ctc_probs.squeeze(0)
+        # cur_hyps: (prefix, (blank_ending_score, none_blank_ending_score))
+        cur_hyps = [(tuple(), (0.0, -float('inf')) )]
+        onebest_length=0
+        lm_scores = {}
+        # 2. CTC beam search step by step, frame-wise, we need integrate with token-wise lm score
+        for t in range(0, maxlen):
+            logp = ctc_probs[t]  # (vocab_size,)
+            # key: prefix, value (pb, pnb), default value(-inf, -inf)
+            next_hyps = defaultdict(lambda: (-float('inf'), -float('inf')))
+            # 2.1 First beam prune: select topk best
+            top_k_logp, top_k_index = logp.topk(beam_size)  # (beam_size,)
+            for s in top_k_index:
+                s = s.item()
+                ps = logp[s].item()
+                for prefix, (pb, pnb) in cur_hyps:
+                    last = prefix[-1] if len(prefix) > 0 else None
+                    if s == 0:  # blank
+                        n_pb, n_pnb = next_hyps[prefix]
+                        n_pb = log_add([n_pb, pb + ps, pnb + ps])
+                        next_hyps[prefix] = (n_pb, n_pnb)
+                    elif s == last:
+                        #  Update *ss -> *s;
+                        n_pb, n_pnb = next_hyps[prefix]
+                        n_pnb = log_add([n_pnb, pnb + ps])
+                        next_hyps[prefix] = (n_pb, n_pnb)
+                        # Update *s-s -> *ss, - is for blank
+                        n_prefix = prefix + (s, )
+                        n_pb, n_pnb = next_hyps[n_prefix]
+                        n_pnb = log_add([n_pnb, pb + ps])
+                        next_hyps[n_prefix] = (n_pb, n_pnb)
+                    else:
+                        n_prefix = prefix + (s, )
+                        n_pb, n_pnb = next_hyps[n_prefix]
+                        n_pnb = log_add([n_pnb, pb + ps, pnb + ps])
+                        next_hyps[n_prefix] = (n_pb, n_pnb)
+
+            # 2.2 Second beam prune
+            next_hyps = sorted(next_hyps.items(),
+                               key=lambda x: log_add(list(x[1])),
+                               reverse=True)
+
+            # TODO: accelerate and improve the performence
+            if (len(next_hyps[0][0]) > onebest_length) : # there is new token
+                cur_hyps = next_hyps[:int(beam_size*pre_beam_scale)]  # here we keep scale*beam_size hyps, for lm rescoring
+
+                cur_hyps_with_lm_score = {}  # add lm_score, maybe add length_bonus
+                for ctc_hyps in cur_hyps:
+                    hyp_tuple = ctc_hyps[0]
+                    ctc_score = log_add(list(ctc_hyps[1]))
+                    if hyp_tuple not in lm_scores:
+                        if len(hyp_tuple) == 0:  # for ctc_blank
+                            lm_scores[hyp_tuple] = 0
+                        else:
+                            hyp = torch.tensor(hyp_tuple, dtype=torch.long, device=logp.device).unsqueeze(0)
+                            # forward ESPnetLM model, get lm_score
+                            length = torch.tensor(len(hyp[0]), dtype=torch.long, device=logp.device).unsqueeze(0)
+                            nll, _, _ = lm(hyp, length)
+                            lm_scores[hyp_tuple] = -nll
+                    lm_score = lm_scores[hyp_tuple]
+                    cur_hyps_with_lm_score[ctc_hyps] = lm_weight*lm_score + (1-lm_weight)*ctc_score
+                    cur_hyps_with_lm_score[ctc_hyps] += length_bonus * len(hyp_tuple)
+                cur_hyps_with_lm_score = sorted(cur_hyps_with_lm_score.items(),
+                                   key=lambda x: (x[1]),
+                                   reverse=True)
+
+                # Do final prune
+                cur_hyps_with_lm_score = cur_hyps_with_lm_score[:beam_size]
+                cur_hyps=[x[0] for x in cur_hyps_with_lm_score]
+
+            else:
+                cur_hyps = next_hyps[:int(beam_size)]
+
+        hyps = [(y[0], log_add([y[1][0], y[1][1]])) for y in cur_hyps]
+        return hyps, encoder_out
+
     def ctc_prefix_beam_search(
         self,
         speech: torch.Tensor,
@@ -458,6 +582,8 @@ class ASRModel(torch.nn.Module):
         ctc_weight: float = 0.0,
         simulate_streaming: bool = False,
         reverse_weight: float = 0.0,
+        lm = None,
+        lm_weight: float = 0.0,
     ) -> List[int]:
         """ Apply attention rescoring decoding, CTC prefix beam search
             is applied first to get nbest, then we resoring the nbest on
@@ -489,10 +615,17 @@ class ASRModel(torch.nn.Module):
         batch_size = speech.shape[0]
         # For attention rescoring we only support batch_size=1
         assert batch_size == 1
-        # encoder_out: (1, maxlen, encoder_dim), len(hyps) = beam_size
-        hyps, encoder_out = self._ctc_prefix_beam_search(
-            speech, speech_lengths, beam_size, decoding_chunk_size,
-            num_decoding_left_chunks, simulate_streaming)
+
+        if lm and lm_weight>0:
+            hyps, encoder_out = self._ctc_nnlm_beam_search(
+                speech, speech_lengths, beam_size, decoding_chunk_size,
+                num_decoding_left_chunks, simulate_streaming, lm, lm_weight)
+        else:
+            # encoder_out: (1, maxlen, encoder_dim), len(hyps) = beam_size
+            hyps, encoder_out = self._ctc_prefix_beam_search(
+                speech, speech_lengths, beam_size, decoding_chunk_size,
+                num_decoding_left_chunks, simulate_streaming)
+
 
         assert len(hyps) == beam_size
         hyps_pad = pad_sequence([
@@ -524,6 +657,12 @@ class ASRModel(torch.nn.Module):
         # conventional transformer decoder.
         r_decoder_out = torch.nn.functional.log_softmax(r_decoder_out, dim=-1)
         r_decoder_out = r_decoder_out.cpu().numpy()
+
+        if lm and lm_weight > 0:
+            lm_out, _ = lm.lm(hyps_pad, None)    # use TransformerLM's forward
+            lm_out = torch.nn.functional.log_softmax(lm_out, dim=-1)
+            lm_out = lm_out.cpu().numpy()
+
         # Only use decoder score for rescoring
         best_score = -float('inf')
         best_index = 0
@@ -539,6 +678,14 @@ class ASRModel(torch.nn.Module):
                     r_score += r_decoder_out[i][len(hyp[0]) - j - 1][w]
                 r_score += r_decoder_out[i][len(hyp[0])][self.eos]
                 score = score * (1 - reverse_weight) + r_score * reverse_weight
+
+            if lm and  lm_weight > 0:
+                lm_score = 0.0
+                for j, w in enumerate(hyp[0]):
+                    lm_score += lm_out[i][j][w]
+                lm_score += lm_out[i][len(hyp[0])][self.eos]
+                score += lm_weight * lm_score
+
             # add ctc score
             score += hyp[1] * ctc_weight
             if score > best_score:

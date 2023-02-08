@@ -46,6 +46,17 @@ def get_args():
     parser.add_argument('--dict', required=True, help='dict file')
     parser.add_argument("--non_lang_syms",
                         help="non-linguistic symbol file. One symbol per line.")
+
+    # add transformer LM
+    parser.add_argument('--lm_file',
+                        default='',
+                        type=str,
+                        help='path of lm model checkpoint, which should have model and config files.')
+    parser.add_argument('--lm_weight',
+                        type=float,
+                        default=0.0,
+                        help='the weight of transformer lm in rescoring.')
+
     parser.add_argument('--beam_size',
                         type=int,
                         default=10,
@@ -218,6 +229,17 @@ def main():
     device = torch.device('cuda' if use_cuda else 'cpu')
     model = model.to(device)
 
+    if hasattr(args, 'lm_file') is not None:
+        from wenet.transformer.transformer_lm import ESPnetLanguageModel
+        lm, lm_train_args = ESPnetLanguageModel.build_model_from_file(
+            None, args.lm_file, 'cuda' if use_cuda else 'cpu'
+        )
+        lm.eval()
+        lm_weight = args.lm_weight #
+    else:
+        lm=None
+        lm_weight = 0.0
+
     model.eval()
     with torch.no_grad(), open(args.result_file, 'w') as fout:
         for batch_idx, batch in enumerate(test_data_loader):
@@ -319,7 +341,10 @@ def main():
                     num_decoding_left_chunks=args.num_decoding_left_chunks,
                     ctc_weight=args.ctc_weight,
                     simulate_streaming=args.simulate_streaming,
-                    reverse_weight=args.reverse_weight)
+                    reverse_weight=args.reverse_weight,
+                    lm=lm,
+                    lm_weight=lm_weight,
+                )
                 hyps = [hyp]
             elif args.mode == 'hlg_onebest':
                 hyps = model.hlg_onebest(

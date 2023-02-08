@@ -6,6 +6,9 @@ export GLOG_v=2
 
 set -e
 
+gpu_devices=
+thread_per_device=1
+
 nj=1
 frame_shift=160   #add different frame_shift support
 frame_length=400
@@ -49,6 +52,11 @@ model_file=$3
 unit_file=$4
 dir=$5
 
+decode_opts=
+if [ ! -z $context_path ]; then
+  decode_opts="--context_path ${context_path} --context_score ${context_score} "
+fi
+
 mkdir -p $dir/split${nj}
 
 # Step 1. Split wav.scp
@@ -72,9 +80,17 @@ if [ ! -z $fst_path ]; then
   wfst_decode_opts="$wfst_decode_opts --length_penalty $length_penalty"
   echo $wfst_decode_opts > $dir/config
 fi
+
+idx=0
+num_gpus=$(echo $gpu_devices | awk -F "," '{print NF}')
+
 for n in $(seq ${nj}); do
 {
-  decoder_main --frame_shift $frame_shift \
+
+  gpu_id=$(echo $CUDA_VISIBLE_DEVICES | cut -d',' -f$[$idx+1])
+  CUDA_VISIBLE_DEVICES=$gpu_id \
+  decoder_main --thread_num $thread_per_device \
+     --frame_shift $frame_shift \
      --rescoring_weight $rescoring_weight \
      --ctc_weight $ctc_weight \
      --reverse_weight $reverse_weight \
@@ -82,11 +98,13 @@ for n in $(seq ${nj}); do
      --wav_scp ${dir}/split${nj}/wav.${n}.scp \
      --model_path $model_file \
      --unit_path $unit_file \
-     --context_path $context_path \
-     --context_score $context_score \
-     $wfst_decode_opts \
+     $decode_opts  $wfst_decode_opts \
      --result ${dir}/split${nj}/${n}.text &> ${dir}/split${nj}/${n}.log
 } &
+    ((idx+=1))
+    if [[ $idx -ge $num_gpus ]]; then
+      idx=0
+    fi
 done
 wait
 
@@ -97,5 +115,7 @@ done > ${dir}/text
 tail $dir/split${nj}/*.log | grep RTF | awk '{sum+=$NF}END{print sum/NR}' > $dir/rtf
 
 # Step 4. Compute WER
+if [ -f $label_file ];then
 python3 tools/compute-wer.py --char=1 --v=1 \
   $label_file $dir/text > $dir/wer
+fi

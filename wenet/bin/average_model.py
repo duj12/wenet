@@ -58,7 +58,7 @@ def main():
         for y in yamls:
             with open(y, 'r') as f:
                 dic_yaml = yaml.load(f, Loader=yaml.FullLoader)
-                loss = dic_yaml['cv_loss']
+                loss = dic_yaml['cv_loss'] if 'cv_loss' in dic_yaml else np.inf
                 epoch = dic_yaml['epoch']
                 if epoch >= args.min_epoch and epoch <= args.max_epoch:
                     val_scores += [[epoch, loss]]

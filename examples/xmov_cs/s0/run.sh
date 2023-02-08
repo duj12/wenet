@@ -5,9 +5,9 @@
 # Use this to control how many gpu you use, It's 1-gpu training if you specify
 # just 1gpu, otherwise it's is multiple gpu training based on DDP in pytorch
 export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
-stage=4 # start from 0 if you need to start from data preparation
-stop_stage=4
-
+stage=$1 # start from 0 if you need to start from data preparation
+stop_stage=$2
+num_gpus=$(echo $CUDA_VISIBLE_DEVICES | awk -F "," '{print NF}')
 # The NCCL_SOCKET_IFNAME variable specifies which IP interface to use for nccl
 # communication. More details can be found in
 # https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/env.html
@@ -30,6 +30,9 @@ cmvn_sampling_divisor=100  # 20 means 5% of the training data to estimate cmvn
 train_set=train
 dev_set=dev
 
+test_sets="test_aishell test_net test_meeting test_libriclean  test_giga test_talcs test_htrs462 test_sjtcs test_conv test_xmov test_xmov_inter"
+test_sets=" test_xmov_inter"
+
 # Optional train_config
 # 1. conf/train_transformer.yaml: Standard transformer
 # 2. conf/train_conformer.yaml: Standard conformer
@@ -47,18 +50,19 @@ dir=exp/conformer_wavaug
 checkpoint=
 
 # use average_checkpoint will get better result
-average_checkpoint=false
-decode_checkpoint=$dir/10.pt
-decode_nj=32
 average_num=10
+average_checkpoint=false
+decode_checkpoint=$dir/avg_${average_num}.pt
 #decode_modes="ctc_greedy_search ctc_prefix_beam_search
 #              attention attention_rescoring"
 decode_modes="attention_rescoring "
-context_path="data/hot_words.txt"
+context_path="data/hot_words_xmov.txt"  #"data/hot_words.txt"  #"data/hot_words_xmov.txt"
 if [ ! -z $context_path ]; then
-  decode_suffix="with_context"
+  decode_suffix="_with_context"
+  decode_opts="--context_path $context_path --context_score 3 "
 else
-  decode_suffix=
+  decode_suffix=""
+  decode_opts=""
 fi
 
 . tools/parse_options.sh || exit 1;
@@ -67,18 +71,17 @@ fi
 if [ ${stage} -le 1 ] && [ ${stop_stage} -ge 1 ]; then
   # For wav feature, just copy the data. Fbank extraction is done in training
   mkdir -p ${feat_dir}_${en_modeling_unit}
-  for x in ${train_set} ${dev_set}; do
+  for x in ${train_set} ${dev_set} ${test_sets}; do
     cp -r data/$x ${feat_dir}_${en_modeling_unit}
   done
 
-  cp -r data/test_sjtcs ${feat_dir}_${en_modeling_unit}/test  # only use sjtcs as a test set
 fi
 
 if [ ${stage} -le 2 ] && [ ${stop_stage} -ge 2 ]; then
-  echo "Compute cmvn"
   # Here we use all the training data, you can sample some some data to save time
   # BUG!!! We should use the segmented data for CMVN
   if $cmvn; then
+    echo "Compute cmvn"
     full_size=`cat data/${train_set}/wav.scp | wc -l`
     sampling_size=$((full_size / cmvn_sampling_divisor))
     shuf -n $sampling_size data/$train_set/wav.scp \
@@ -117,7 +120,7 @@ if [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then
       ${feat_dir}_${en_modeling_unit}/$x/data.list
     fi
   done
-  for x in test ; do
+  for x in ${test_sets} ; do
     tools/make_raw_list.py ${feat_dir}_${en_modeling_unit}/$x/wav.scp \
     ${feat_dir}_${en_modeling_unit}/$x/text \
     ${feat_dir}_${en_modeling_unit}/$x/data.list
@@ -193,12 +196,22 @@ if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
   ctc_weight=0.5
   idx=0
   reverse_weight=0.0
+  nnlm_file=data/lm_transformer/valid.loss.ave_10best.pth
+  lm_weight=0.3
+  if [ -f $nnlm_file ] ; then
+    decode_opts="--lm_file $nnlm_file --lm_weight $lm_weight"
+    decode_suffix="_nnlm${lm_weight}"
+  else
+    decode_opts=
+    decode_suffix=
+  fi
+  nj=16
 
-  nj=$decode_nj
+  for test in ${test_sets}; do
+
   for mode in ${decode_modes}; do
   {
-    test_dir="$dir/"`
-      `"test_${mode}${decoding_chunk_size:+_chunk$decoding_chunk_size}/test"
+    test_dir="$dir/test_${mode}${decoding_chunk_size:+_chunk$decoding_chunk_size}${decode_suffix}/${test}"
     mkdir -p $test_dir
     mkdir -p $test_dir/split${nj}
 
@@ -207,14 +220,14 @@ if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
     for n in $(seq ${nj}); do
       split_scps="${split_scps} ${test_dir}/split${nj}/data.${n}.list"
     done
-    scp=${feat_dir}_${en_modeling_unit}/test/data.list
+    scp=${feat_dir}_${en_modeling_unit}/${test}/data.list
     tools/data/split_scp.pl ${scp} ${split_scps}
 
-    num_gpus=$(echo $CUDA_VISIBLE_DEVICES | awk -F "," '{print NF}')
     # Step 2. Parallel decoding
     for n in $(seq ${nj}); do
     {
     gpu_id=$(echo $CUDA_VISIBLE_DEVICES | cut -d',' -f$[$idx+1])
+    if [[ $num_gpus -eq 0 ]]; then gpu_id=-1 ; fi
     python wenet/bin/recognize.py --gpu $gpu_id \
       --mode $mode \
       --config $dir/train.yaml \
@@ -228,7 +241,7 @@ if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
       --ctc_weight $ctc_weight \
       --reverse_weight $reverse_weight \
       ${decoding_chunk_size:+--decoding_chunk_size $decoding_chunk_size} \
-      --bpe_model ${bpecode} \
+      --bpe_model ${bpecode} $decode_opts \
       --result_file $test_dir/split${nj}/${n}.text_${en_modeling_unit} \
       &> ${test_dir}/split${nj}/${n}.log
     } &
@@ -252,68 +265,90 @@ if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
       | sed -e "s/▁/ /g" > $test_dir/text
     fi
     # Cer used to be consistent with kaldi & espnet
-    python tools/compute-cer.py --char=1 --v=1 \
-      ${feat_dir}_${en_modeling_unit}/test/text $test_dir/text > $test_dir/wer
+#    python tools/compute-cer.py --char=1 --v=1 \
+#      ${feat_dir}_${en_modeling_unit}/${test}/text $test_dir/text > $test_dir/cer
+    python tools/compute-wer.py --char=1 --v=1 \
+      ${feat_dir}_${en_modeling_unit}/${test}/text $test_dir/text > $test_dir/wer
   } &
-  done
+  done # for each decoding mode
   wait
+
+  done  # for each test set
 fi
 
 if [ ${stage} -le 6 ] && [ ${stop_stage} -ge 6 ]; then
   # Export the best model you want
   python wenet/bin/export_jit.py \
     --config $dir/train.yaml \
-    --checkpoint $dir/10.pt \
+    --checkpoint $dir/avg_${average_num}.pt \
     --output_file $dir/final.zip \
     --output_quant_file $dir/final_quant.zip
 fi
 
 # Optionally, you can add LM and test it with runtime.
 if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
-  if [ ! -f data/lang_test/TLG.fst ]; then
-  # 7.1 Prepare dict
-  unit_file=data/dict_bpe/tokens.txt
-  mkdir -p data/local/dict
-  cp $unit_file data/local/dict/units.txt
-  tools/fst/prepare_dict.py $unit_file data/lexicon/lexicon.txt \
-    data/local/dict/lexicon.txt ${bpecode}
-  # 7.2 Train lm
-  lm=data/local/lm
-  mkdir -p $lm
-  cp data/train/text0  $lm/text
-  local/aishell_train_lms.sh
-  # 7.3 Build decoding TLG
-  tools/fst/compile_lexicon_token_fst.sh \
-    data/local/dict data/local/tmp data/local/lang
-  tools/fst/make_tlg.sh data/local/lm data/local/lang data/lang_test || exit 1;
+  if [ ! -f data/lang_test/TLG.fst ] && [ 0 -eq 1 ]; then
+    use_word_ngram=false
+    # 7.1 Prepare dict
+    unit_file=data/dict_bpe/tokens.txt
+    mkdir -p data/local/dict
+    cp $unit_file data/local/dict/units.txt
+    if $use_word_ngram ; then
+      tools/fst/prepare_dict.py $unit_file data/lexicon/lexicon.txt \
+        data/local/dict/lexicon.txt ${bpecode}  1
+    else
+      tools/fst/prepare_dict.py $unit_file data/lexicon/lexicon.txt \
+        data/local/dict/lexicon.txt ${bpecode}
+    fi
+    # 7.2 Train lm
+    lm=data/local/lm
+    mkdir -p $lm
+    if $use_word_ngram ; then  #segment text into words, need to configure friso first
+      cat data/train*/text | cut -d' ' -f2- > $lm/text0
+      tools/friso/src/friso -init tools/friso/friso.ini $lm/text0 $lm/text
+    else # use the text already segment into chars
+      cat data/train*/text0 > $lm/text
+    fi
+    local/aishell_train_lms.sh
+
+    # 7.3 Build decoding TLG
+    tools/fst/compile_lexicon_token_fst.sh \
+      data/local/dict data/local/tmp data/local/lang
+    tools/fst/make_tlg.sh data/local/lm data/local/lang data/lang_test || exit 1;
   fi
   # 7.4 Decoding with runtime
+  #test_sets="test_aishell test_meeting test_libriclean  test_giga test_talcs test_htrs462 test_sjtcs test_conv test_xmov test_xmov_inter"
+  test_sets=" train_xmov"
+  length_penalty=-4.0
+  lm=lm_asrtext_6gram_chars
+  for test in ${test_sets}; do
   use_lm=0
   if [ $use_lm -eq 1 ]; then
   echo "decode with TLG.fst.."
+  lang_test=data/$lm/lang_test  # the path of TLG.fst and words.txt
   chunk_size=16
-  ./tools/decode.sh --nj 16  --frame_shift 100 \
+  ./tools/decode.sh --nj 32 --gpu_devices $CUDA_VISIBLE_DEVICES  --frame_shift 100 \
     --beam 15.0 --lattice_beam 7.5 --max_active 7000 \
     --blank_skip_thresh 0.98 --ctc_weight 0.5 --rescoring_weight 1.0 \
-    --chunk_size $chunk_size \
-    --fst_path data/lang_test/TLG.fst \
-    --dict_path data/lang_test/words.txt \
-    --context_path $context_path \
-    --context_score 3 \
-    data/test/wav.scp data/test/text $dir/final.zip \
-    data/lang_test/units.txt $dir/lm_with_runtime_${chunk_size}_${decode_suffix}
+    --chunk_size $chunk_size $decode_opts --length_penalty ${length_penalty} \
+    --fst_path $lang_test/TLG.fst \
+    --dict_path $lang_test/words.txt \
+    data/${test}/wav.scp data/${test}/text $dir/final.zip \
+    $dict "$dir/${lm}_with_runtime_${chunk_size}_penalty${length_penalty}${decode_suffix}/${test}"
   # Please see $dir/lm_with_runtime for wer
   elif [ $use_lm -eq 0 ]; then
   echo "decode without TLG.fst.."
   chunk_size=16
-  ./tools/decode.sh --nj 16 --frame_shift 100 \
+  ./tools/decode.sh --nj 32 --gpu_devices $CUDA_VISIBLE_DEVICES --frame_shift 100 \
     --beam 15.0 --lattice_beam 7.5 --max_active 7000 \
     --blank_skip_thresh 0.98 --ctc_weight 0.5  --rescoring_weight 1.0 \
-    --chunk_size $chunk_size \
-    --context_path $context_path \
-    --context_score 3 \
-    data/test/wav.scp data/test/text $dir/final.zip \
-    $dict $dir/runtime_${chunk_size}_${decode_suffix}
+    --chunk_size $chunk_size $decode_opts \
+    data/${test}/wav.scp data/${test}/text $dir/final.zip \
+    $dict  "$dir/runtime_${chunk_size}${decode_suffix}/${test}"
   # Please see $dir/runtime for wer
   fi
+
+  done
+
 fi
+

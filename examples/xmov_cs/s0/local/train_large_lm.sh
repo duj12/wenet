@@ -1,5 +1,5 @@
 #!/bin/bash
-stage=1
+stage=3
 stop_stage=3
 
 tmp_fifofile="/tmp/$$.fifo"
@@ -7,7 +7,7 @@ mkfifo $tmp_fifofile   # 新建一个FIFO类型的文件
 exec 6<>$tmp_fifofile  # 将FD6指向FIFO类型
 rm $tmp_fifofile  #删也可以，
 
-thread_num=10  # 定义最大线程数
+thread_num=16  # 定义最大线程数
 
 # To be run from one directory above this script.
 . ./path.sh
@@ -93,7 +93,7 @@ fi
 if [ ${stage} -le 2 ] && [ ${stop_stage} -ge 2 ]; then
 #3：合并counts文本并压缩, 生成.ngram.gz后缀的文件
 echo "Merging the word frequency counts."
-merge-batch-counts $dir/counts
+local/merge-batch-counts-threads $dir/counts
 fi
 
 if [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then
@@ -103,8 +103,9 @@ echo "Making BIG LM, with order=${order}, prune=${prune}, vocab=${lexicon}"
 root_path=`pwd`
 mkdir -p $tmp_path
 cd $tmp_path   # change to $tmp_path, in case there will be some discount files.
-  make-big-lm -read $root_path/$dir/counts/*.ngrams.gz -order $order -limit-vocab -vocab $root_path/$lexicon -unk \
-    -map-unk "<UNK>" -kndiscount  -interpolate -prune $prune -lm $root_path/$dir/lm.arpa
+$root_path/local/make-big-lm -read $root_path/$dir/counts/*.ngrams.gz \
+    -order $order -limit-vocab -vocab $root_path/$lexicon -unk -map-unk "<UNK>" \
+    -kndiscount  -interpolate -prune $prune -lm $root_path/$dir/lm.arpa
 cd $root_path
 #用法同ngram-counts   -kndiscount -interpolate  OR -wbdiscount
 fi
