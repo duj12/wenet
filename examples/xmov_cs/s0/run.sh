@@ -4,7 +4,7 @@
 
 # Use this to control how many gpu you use, It's 1-gpu training if you specify
 # just 1gpu, otherwise it's is multiple gpu training based on DDP in pytorch
-export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
+export CUDA_VISIBLE_DEVICES="0,1,2,3"
 stage=$1 # start from 0 if you need to start from data preparation
 stop_stage=$2
 num_gpus=$(echo $CUDA_VISIBLE_DEVICES | awk -F "," '{print NF}')
@@ -30,8 +30,7 @@ cmvn_sampling_divisor=100  # 20 means 5% of the training data to estimate cmvn
 train_set=train
 dev_set=dev
 
-test_sets="test_aishell test_net test_meeting test_libriclean  test_giga test_talcs test_htrs462 test_sjtcs test_conv test_xmov test_xmov_inter"
-test_sets=" test_xmov_inter"
+test_sets="test_aishell test_net test_meeting test_conv test_libriclean  test_giga test_talcs test_htrs462 test_sjtcs test_xmov test_xmov_inter"
 
 # Optional train_config
 # 1. conf/train_transformer.yaml: Standard transformer
@@ -56,14 +55,7 @@ decode_checkpoint=$dir/avg_${average_num}.pt
 #decode_modes="ctc_greedy_search ctc_prefix_beam_search
 #              attention attention_rescoring"
 decode_modes="attention_rescoring "
-context_path="data/hot_words_xmov.txt"  #"data/hot_words.txt"  #"data/hot_words_xmov.txt"
-if [ ! -z $context_path ]; then
-  decode_suffix="_with_context"
-  decode_opts="--context_path $context_path --context_score 3 "
-else
-  decode_suffix=""
-  decode_opts=""
-fi
+
 
 . tools/parse_options.sh || exit 1;
 
@@ -197,16 +189,19 @@ if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
   idx=0
   reverse_weight=0.0
   nnlm_file=data/lm_transformer/valid.loss.ave_10best.pth
-  lm_weight=0.3
-  if [ -f $nnlm_file ] ; then
-    decode_opts="--lm_file $nnlm_file --lm_weight $lm_weight"
-    decode_suffix="_nnlm${lm_weight}"
+  lm_firstpass_weight=0.3
+  lm_secondpass_weight=0.5
+  if [ ! -z $nnlm_file ] ; then
+    decode_opts="--lm_file $nnlm_file --lm_firstpass_weight $lm_firstpass_weight --lm_secondpass_weight $lm_secondpass_weight "
+    decode_suffix="_nnlm_1st${lm_firstpass_weight}_2nd${lm_secondpass_weight}"
   else
     decode_opts=
     decode_suffix=
   fi
-  nj=16
-
+  nj=1
+  CUDA_VISIBLE_DEVICES=""
+  num_gpus=$(echo $CUDA_VISIBLE_DEVICES | awk -F "," '{print NF}')
+  test_sets="debug "
   for test in ${test_sets}; do
 
   for mode in ${decode_modes}; do
@@ -227,6 +222,7 @@ if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
     for n in $(seq ${nj}); do
     {
     gpu_id=$(echo $CUDA_VISIBLE_DEVICES | cut -d',' -f$[$idx+1])
+
     if [[ $num_gpus -eq 0 ]]; then gpu_id=-1 ; fi
     python wenet/bin/recognize.py --gpu $gpu_id \
       --mode $mode \
@@ -317,17 +313,34 @@ if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
     tools/fst/make_tlg.sh data/local/lm data/local/lang data/lang_test || exit 1;
   fi
   # 7.4 Decoding with runtime
-  #test_sets="test_aishell test_meeting test_libriclean  test_giga test_talcs test_htrs462 test_sjtcs test_conv test_xmov test_xmov_inter"
-  test_sets=" train_xmov"
-  length_penalty=-4.0
-  lm=lm_asrtext_6gram_chars
-  for test in ${test_sets}; do
+  test_sets="test_aishell test_net test_meeting test_libriclean  test_giga test_talcs test_htrs462 test_sjtcs test_conv test_xmov test_xmov_inter"
+  test_sets="test_xmov_inter "
+  nj=1
+  CUDA_VISIBLE_DEVICES=""
+  if [ ! -z $CUDA_VISIBLE_DEVICES ]; then
+    decode_opts="--gpu_devices $CUDA_VISIBLE_DEVICES "$decode_opts
+  else
+    decode_opts=""$decode_opts
+  fi
   use_lm=0
+  length_penalty=-4.0
+  lm=lm_250G_4gram+asrtext_6gram_chars
+  context_path= #"data/hot_words_xmov.txt" #"data/hot_words.txt"
+  if [ ! -z $context_path ]; then
+    decode_suffix="_with_context"
+    decode_opts="--context_path $context_path --context_score 3 "$decode_opts
+  else
+    decode_suffix=""
+    decode_opts=""$decode_opts
+  fi
+
+  for test in ${test_sets}; do
+
   if [ $use_lm -eq 1 ]; then
   echo "decode with TLG.fst.."
   lang_test=data/$lm/lang_test  # the path of TLG.fst and words.txt
   chunk_size=16
-  ./tools/decode.sh --nj 32 --gpu_devices $CUDA_VISIBLE_DEVICES  --frame_shift 100 \
+  ./tools/decode.sh --nj $nj  --frame_shift 100 \
     --beam 15.0 --lattice_beam 7.5 --max_active 7000 \
     --blank_skip_thresh 0.98 --ctc_weight 0.5 --rescoring_weight 1.0 \
     --chunk_size $chunk_size $decode_opts --length_penalty ${length_penalty} \
@@ -339,7 +352,7 @@ if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
   elif [ $use_lm -eq 0 ]; then
   echo "decode without TLG.fst.."
   chunk_size=16
-  ./tools/decode.sh --nj 32 --gpu_devices $CUDA_VISIBLE_DEVICES --frame_shift 100 \
+  ./tools/decode.sh --nj $nj --frame_shift 100 \
     --beam 15.0 --lattice_beam 7.5 --max_active 7000 \
     --blank_skip_thresh 0.98 --ctc_weight 0.5  --rescoring_weight 1.0 \
     --chunk_size $chunk_size $decode_opts \

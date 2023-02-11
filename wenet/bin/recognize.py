@@ -52,10 +52,14 @@ def get_args():
                         default='',
                         type=str,
                         help='path of lm model checkpoint, which should have model and config files.')
-    parser.add_argument('--lm_weight',
+    parser.add_argument('--lm_firstpass_weight',
                         type=float,
                         default=0.0,
-                        help='the weight of transformer lm in rescoring.')
+                        help='the weight of transformer lm in firstpass(CTC beam search) rescoring.')
+    parser.add_argument('--lm_secondpass_weight',
+                        type=float,
+                        default=0.0,
+                        help='the weight of transformer lm in secondpass(decoder attention rescore) rescoring.')
 
     parser.add_argument('--beam_size',
                         type=int,
@@ -229,16 +233,18 @@ def main():
     device = torch.device('cuda' if use_cuda else 'cpu')
     model = model.to(device)
 
-    if hasattr(args, 'lm_file') is not None:
+    if hasattr(args, 'lm_file') and args.lm_file != "":
         from wenet.transformer.transformer_lm import ESPnetLanguageModel
         lm, lm_train_args = ESPnetLanguageModel.build_model_from_file(
             None, args.lm_file, 'cuda' if use_cuda else 'cpu'
         )
         lm.eval()
-        lm_weight = args.lm_weight #
+        lm_firstpass_weight = args.lm_firstpass_weight #
+        lm_secondpass_weight = args.lm_secondpass_weight #
     else:
         lm=None
-        lm_weight = 0.0
+        lm_firstpass_weight = 0.0 #
+        lm_secondpass_weight = 0.0
 
     model.eval()
     with torch.no_grad(), open(args.result_file, 'w') as fout:
@@ -343,7 +349,8 @@ def main():
                     simulate_streaming=args.simulate_streaming,
                     reverse_weight=args.reverse_weight,
                     lm=lm,
-                    lm_weight=lm_weight,
+                    lm_firstpass_weight=lm_firstpass_weight,
+                    lm_secondpass_weight=lm_secondpass_weight,
                 )
                 hyps = [hyp]
             elif args.mode == 'hlg_onebest':

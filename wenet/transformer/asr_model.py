@@ -426,7 +426,7 @@ class ASRModel(torch.nn.Module):
         simulate_streaming: bool = False,
         lm: torch.nn.Module = None,
         lm_weight: float = 0.3,
-        pre_beam_scale: float = 2.0,
+        pre_beam_scale: float = 1.5,
         length_bonus: float = 2.0
     ) -> Tuple[List[List[int]], torch.Tensor]:
         """ CTC prefix beam search with Neural Network Language Model inner implementation
@@ -583,7 +583,8 @@ class ASRModel(torch.nn.Module):
         simulate_streaming: bool = False,
         reverse_weight: float = 0.0,
         lm = None,
-        lm_weight: float = 0.0,
+        lm_firstpass_weight = 0.0,
+        lm_secondpass_weight: float = 0.0,
     ) -> List[int]:
         """ Apply attention rescoring decoding, CTC prefix beam search
             is applied first to get nbest, then we resoring the nbest on
@@ -616,10 +617,10 @@ class ASRModel(torch.nn.Module):
         # For attention rescoring we only support batch_size=1
         assert batch_size == 1
 
-        if lm and lm_weight>0:
+        if lm and lm_firstpass_weight>0:
             hyps, encoder_out = self._ctc_nnlm_beam_search(
                 speech, speech_lengths, beam_size, decoding_chunk_size,
-                num_decoding_left_chunks, simulate_streaming, lm, lm_weight)
+                num_decoding_left_chunks, simulate_streaming, lm, lm_firstpass_weight)
         else:
             # encoder_out: (1, maxlen, encoder_dim), len(hyps) = beam_size
             hyps, encoder_out = self._ctc_prefix_beam_search(
@@ -658,7 +659,7 @@ class ASRModel(torch.nn.Module):
         r_decoder_out = torch.nn.functional.log_softmax(r_decoder_out, dim=-1)
         r_decoder_out = r_decoder_out.cpu().numpy()
 
-        if lm and lm_weight > 0:
+        if lm and lm_secondpass_weight > 0:
             lm_out, _ = lm.lm(hyps_pad, None)    # use TransformerLM's forward
             lm_out = torch.nn.functional.log_softmax(lm_out, dim=-1)
             lm_out = lm_out.cpu().numpy()
@@ -679,12 +680,12 @@ class ASRModel(torch.nn.Module):
                 r_score += r_decoder_out[i][len(hyp[0])][self.eos]
                 score = score * (1 - reverse_weight) + r_score * reverse_weight
 
-            if lm and  lm_weight > 0:
+            if lm and  lm_secondpass_weight > 0:
                 lm_score = 0.0
                 for j, w in enumerate(hyp[0]):
                     lm_score += lm_out[i][j][w]
                 lm_score += lm_out[i][len(hyp[0])][self.eos]
-                score += lm_weight * lm_score
+                score += lm_secondpass_weight * lm_score
 
             # add ctc score
             score += hyp[1] * ctc_weight

@@ -1,3 +1,14 @@
+# Xmov Streaming ASR 
+
+  根据WeNet的训练和推理框架，进行开发，可根据需要部署在不同平台。
+
+  具体部署方法，切换到对应平台路径下，按照说明进行编译即可。
+
+  推荐采用Libtorch的方式，编译到X86平台服务端。
+
+  所需模型文件等资源，联系dujing获取。
+
+
 # Runtime on WeNet
 
 This is the runtime of WeNet.
