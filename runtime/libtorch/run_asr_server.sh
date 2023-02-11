@@ -14,7 +14,7 @@ lang_dir=../../examples/xmov_cs/s0/data/lm_asrtext_6gram_chars/lang_test   #Ngra
 dict_path=$lang_dir/words.txt  #语言模型词图对应词典的路径，默认名称为words.txt和TLG.fst放在同一个路径下
 
 #可选资源：热词列表
-context_path=$lang_dir/hot_words.txt    #热词路径，每个词一行
+context_path= #$lang_dir/hot_words.txt    #热词路径，每个词一行
 context_score=3                         #热词激励分数，一般不用改
 
 acoustic_scale=1.0
