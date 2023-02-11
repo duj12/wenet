@@ -14,6 +14,10 @@ option(TORCH "whether to build with Torch" ON)
 option(ONNX "whether to build with ONNX" OFF)
 option(GPU "whether to build with GPU" OFF)
 
+#SET(CMAKE_BUILD_TYPE "Debug")    # Debug OR Release, you can set it in command window: cmake -DCMAKE_BUILD_TYPE=Debug 
+SET(CMAKE_CXX_FLAGS_DEBUG "$ENV{CXXFLAGS} -O0 -Wall -g -ggdb")
+SET(CMAKE_CXX_FLAGS_RELEASE "$ENV{CXXFLAGS} -O3 -Wall")
+
 set(CMAKE_VERBOSE_MAKEFILE OFF)
 
 include(FetchContent)
