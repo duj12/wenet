@@ -8,15 +8,20 @@ export GLOG_v=2
 model_dir=../resource/ASR                 #端到端ASR识别模型文件路径，模型为final.zip， 量化模型为final_quant.zip
 unit_path=../resource/ASR/lang_char.txt   #端到端ASR识别模型对应的建模单元路径
 
-#可选资源：NgramLM
+# VAD 参数设置
+min_trailing_silence=800                  #VAD拖尾静音长度，单位ms，语音间隔的静音段超过此长度，则语音被截断(当前结果作为final_result返回)。
+max_utterance_length=20000                #VAD最大截断长度，单位ms，连续语音长度(中间无静音段)超过此长度，则被截断(当前结果作为final_result返回)。
+
+#可选资源：NgramLM， 提供fst_path具体路径，即可使用语言模型进行解码。
 lang_dir=../resource/LM        #Ngram语言模型路径
-#fst_path=$lang_dir/TLG.fst    #语言模型词图路径，默认名称都是TLG.fst，如果提供具体路径，则解码时会自动加载
+fst_path= #$lang_dir/TLG.fst    #语言模型词图路径，默认名称都是TLG.fst，如果提供具体路径，则解码时会自动加载
 dict_path=$lang_dir/words.txt  #语言模型词图对应词典的路径，默认名称为words.txt和TLG.fst放在同一个路径下
 
-#可选资源：热词列表
+#可选资源：热词列表，提供context_path，即可加载热词，并在解码中进行热词激励。
 context_path= #$lang_dir/hot_words.txt    #热词路径，每个词一行
 context_score=3                         #热词激励分数，一般不用改
 
+#下面是WFST解码参数，一般不用改。
 acoustic_scale=1.0
 beam=15.0
 lattice_beam=7.5
@@ -48,5 +53,7 @@ CUDA_VISIBLE_DEVICES="6" ./build/bin/websocket_server_main \
     --frame_shift 100 \
     --chunk_size 16 ${wfst_decode_opts} ${decode_opts} \
     --ctc_weight 0.5 --rescoring_weight 1.0 \
+    --min_trailing_silence $min_trailing_silence  \
+    --max_utterance_length $max_utterance_length  \
     --model_path $model_dir/final.zip \
     --unit_path $unit_path 2>&1 | tee server.log
