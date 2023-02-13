@@ -5,11 +5,11 @@ export GLOG_logtostderr=1
 export GLOG_v=2
 
 #必备资源
-model_dir=../../examples/xmov_cs/s0/exp/conformer_wavaug          #端到端ASR识别模型文件，打包成了final.zip
-unit_path=../../examples/xmov_cs/s0/data/dict_bpe/lang_char.txt   #端到端ASR识别模型对应的建模单元路径
+model_dir=../resource/ASR                 #端到端ASR识别模型文件路径，模型为final.zip， 量化模型为final_quant.zip
+unit_path=../resource/ASR/lang_char.txt   #端到端ASR识别模型对应的建模单元路径
 
 #可选资源：NgramLM
-lang_dir=../../examples/xmov_cs/s0/data/lm_asrtext_6gram_chars/lang_test   #Ngram语言模型路径
+lang_dir=../resource/LM        #Ngram语言模型路径
 #fst_path=$lang_dir/TLG.fst    #语言模型词图路径，默认名称都是TLG.fst，如果提供具体路径，则解码时会自动加载
 dict_path=$lang_dir/words.txt  #语言模型词图对应词典的路径，默认名称为words.txt和TLG.fst放在同一个路径下
 

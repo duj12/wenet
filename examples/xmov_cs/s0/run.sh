@@ -314,9 +314,9 @@ if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
   fi
   # 7.4 Decoding with runtime
   test_sets="test_aishell test_net test_meeting test_libriclean  test_giga test_talcs test_htrs462 test_sjtcs test_conv test_xmov test_xmov_inter"
-  test_sets="test_xmov_inter "
-  nj=1
-  CUDA_VISIBLE_DEVICES=""
+  test_sets="train_xmov1 "
+  nj=16
+  CUDA_VISIBLE_DEVICES="0,1,2,3"
   if [ ! -z $CUDA_VISIBLE_DEVICES ]; then
     decode_opts="--gpu_devices $CUDA_VISIBLE_DEVICES "$decode_opts
   else
@@ -325,7 +325,7 @@ if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
   use_lm=0
   length_penalty=-4.0
   lm=lm_250G_4gram+asrtext_6gram_chars
-  context_path= #"data/hot_words_xmov.txt" #"data/hot_words.txt"
+  context_path="data/hot_words.txt"
   if [ ! -z $context_path ]; then
     decode_suffix="_with_context"
     decode_opts="--context_path $context_path --context_score 3 "$decode_opts

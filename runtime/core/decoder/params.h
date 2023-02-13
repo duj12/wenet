@@ -1,5 +1,6 @@
 // Copyright (c) 2020 Mobvoi Inc (Binbin Zhang, Di Wu)
 //               2022 Binbin Zhang (binbzha@qq.com)
+//               2023 dujing 
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -103,6 +104,13 @@ DEFINE_int32(language_type, 0,
              "0x01 = kIndoEuropean");
 DEFINE_bool(lowercase, true, "lowercase final result if needed");
 
+// VAD flags
+DEFINE_int32(min_trailing_silence, 1000, "Min trailing silence in ms.");
+DEFINE_int32(max_utterance_length, 20000, 
+            "Max audio length that final_result may contain. "
+            "If the continous speech is exceed this value, "
+            "the speech will be cutted into segments.");
+
 namespace wenet {
 std::shared_ptr<FeaturePipelineConfig> InitFeaturePipelineConfigFromFlags() {
   auto feature_config = std::make_shared<FeaturePipelineConfig>(
@@ -122,12 +130,16 @@ std::shared_ptr<DecodeOptions> InitDecodeOptionsFromFlags() {
   decode_config->ctc_wfst_search_opts.beam = FLAGS_beam;
   decode_config->ctc_wfst_search_opts.lattice_beam = FLAGS_lattice_beam;
   decode_config->ctc_wfst_search_opts.acoustic_scale = FLAGS_acoustic_scale;
-  decode_config->ctc_wfst_search_opts.blank_skip_thresh =
-      FLAGS_blank_skip_thresh;
+  decode_config->ctc_wfst_search_opts.blank_skip_thresh = FLAGS_blank_skip_thresh;
   decode_config->ctc_wfst_search_opts.length_penalty = FLAGS_length_penalty;
   decode_config->ctc_wfst_search_opts.nbest = FLAGS_nbest;
   decode_config->ctc_prefix_search_opts.first_beam_size = FLAGS_nbest;
   decode_config->ctc_prefix_search_opts.second_beam_size = FLAGS_nbest;
+
+  //VAD related
+  decode_config->ctc_endpoint_config.rule2.min_trailing_silence = FLAGS_min_trailing_silence;
+  decode_config->ctc_endpoint_config.rule3.min_utterance_length = FLAGS_max_utterance_length;
+
   return decode_config;
 }
 
