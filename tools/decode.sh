@@ -8,7 +8,7 @@ set -e
 
 gpu_devices=
 thread_per_device=1
-
+warmup=0
 nj=1
 frame_shift=160   #add different frame_shift support
 frame_length=400
@@ -87,9 +87,10 @@ num_gpus=$(echo $gpu_devices | awk -F "," '{print NF}')
 for n in $(seq ${nj}); do
 {
 
-  gpu_id=$(echo $CUDA_VISIBLE_DEVICES | cut -d',' -f$[$idx+1])
+  gpu_id=$(echo $gpu_devices | cut -d',' -f$[$idx+1])
   CUDA_VISIBLE_DEVICES=$gpu_id \
   decoder_main --thread_num $thread_per_device \
+     --warmup $warmup   \
      --frame_shift $frame_shift \
      --rescoring_weight $rescoring_weight \
      --ctc_weight $ctc_weight \

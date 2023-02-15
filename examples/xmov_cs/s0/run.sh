@@ -314,9 +314,14 @@ if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
   fi
   # 7.4 Decoding with runtime
   test_sets="test_aishell test_net test_meeting test_libriclean  test_giga test_talcs test_htrs462 test_sjtcs test_conv test_xmov test_xmov_inter"
-  test_sets="train_xmov1 "
-  nj=16
-  CUDA_VISIBLE_DEVICES="0,1,2,3"
+  test_sets="test_xmov_inter "
+
+  model_suffix="_quant"
+  CUDA_VISIBLE_DEVICES="0"
+  num_gpus=$(echo $CUDA_VISIBLE_DEVICES | awk -F "," '{print NF}')
+  thread_num=25
+  warmup=20
+  nj=$num_gpus
   if [ ! -z $CUDA_VISIBLE_DEVICES ]; then
     decode_opts="--gpu_devices $CUDA_VISIBLE_DEVICES "$decode_opts
   else
@@ -325,7 +330,7 @@ if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
   use_lm=0
   length_penalty=-4.0
   lm=lm_250G_4gram+asrtext_6gram_chars
-  context_path="data/hot_words.txt"
+  context_path= #"data/hot_words.txt"
   if [ ! -z $context_path ]; then
     decode_suffix="_with_context"
     decode_opts="--context_path $context_path --context_score 3 "$decode_opts
@@ -340,24 +345,24 @@ if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
   echo "decode with TLG.fst.."
   lang_test=data/$lm/lang_test  # the path of TLG.fst and words.txt
   chunk_size=16
-  ./tools/decode.sh --nj $nj  --frame_shift 100 \
-    --beam 15.0 --lattice_beam 7.5 --max_active 7000 \
+  ./tools/decode.sh --nj $nj --thread_per_device $thread_num --warmup $warmup \
+     --frame_shift 100 --beam 15.0 --lattice_beam 7.5 --max_active 7000 \
     --blank_skip_thresh 0.98 --ctc_weight 0.5 --rescoring_weight 1.0 \
     --chunk_size $chunk_size $decode_opts --length_penalty ${length_penalty} \
     --fst_path $lang_test/TLG.fst \
     --dict_path $lang_test/words.txt \
-    data/${test}/wav.scp data/${test}/text $dir/final.zip \
-    $dict "$dir/${lm}_with_runtime_${chunk_size}_penalty${length_penalty}${decode_suffix}/${test}"
+    data/${test}/wav.scp data/${test}/text $dir/final${model_suffix}.zip \
+    $dict "$dir/${lm}_with_runtime_${chunk_size}_penalty${length_penalty}${decode_suffix}${model_suffix}/${test}"
   # Please see $dir/lm_with_runtime for wer
   elif [ $use_lm -eq 0 ]; then
   echo "decode without TLG.fst.."
   chunk_size=16
-  ./tools/decode.sh --nj $nj --frame_shift 100 \
-    --beam 15.0 --lattice_beam 7.5 --max_active 7000 \
+  ./tools/decode.sh --nj $nj --thread_per_device $thread_num --warmup $warmup \
+    --frame_shift 100 --beam 15.0 --lattice_beam 7.5 --max_active 7000 \
     --blank_skip_thresh 0.98 --ctc_weight 0.5  --rescoring_weight 1.0 \
     --chunk_size $chunk_size $decode_opts \
-    data/${test}/wav.scp data/${test}/text $dir/final.zip \
-    $dict  "$dir/runtime_${chunk_size}${decode_suffix}/${test}"
+    data/${test}/wav.scp data/${test}/text $dir/final${model_suffix}.zip \
+    $dict  "$dir/runtime_${chunk_size}${decode_suffix}${model_suffix}/${test}"
   # Please see $dir/runtime for wer
   fi
 
