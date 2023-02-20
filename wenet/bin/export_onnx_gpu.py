@@ -136,7 +136,11 @@ class StreamingEncoder(torch.nn.Module):
 
         # rewrite encoder.forward_chunk
         # <---------forward_chunk START--------->
-        xs = self.global_cmvn(chunk_xs)
+        # dujing modified: current version may not conclude global_cmvn
+        if self.global_cmvn is None:
+            xs = chunk_xs
+        else:
+            xs = self.global_cmvn(chunk_xs)
         # chunk mask is important for batch inferencing since
         # different sequence in a batch has different length
         xs, pos_emb, chunk_mask = self.embed(xs, chunk_mask, offset)

@@ -1,3 +1,38 @@
+## 使用说明
+    
+    # 首先设定onnx模型所在路径，所需资源联系dujing获取
+    onnx_model_dir=`pwd`/../resource/ASR/onnx_gpu_model
+    # 搭建环境，下载英伟达的资源可能会花费一些时间。如果遇到pip下载出错，可以考虑切换源重新下载
+    docker build . -f Dockerfile/Dockerfile.server -t wenet_server:latest --network host
+    # 启动流式服务， 选定容器使用的GPU-ID（此处是0号），需要安装nvidia-docker2才能使用--gpus选项
+    docker run --gpus '"device=0"' -it \
+        -v $PWD/model_repo_stateful:/ws/model_repo \
+        -v $onnx_model_dir:/ws/onnx_model \
+        -p 8000:8000 -p 8001:8001 -p 8002:8002 \
+        --shm-size=1g --ulimit memlock=-1  wenet_server:latest \
+        bash /workspace/scripts/convert_start_server.sh
+    
+    # 构建客户端环境，同样的，下载英伟达的资源会花点时间。
+    docker build . -f Dockerfile/Dockerfile.client -t wenet_client:latest --network host
+
+    # 设定测试音频路径
+    AUDIO_DATA=`pwd`/../resource/WAV
+    # 映射路径并启动容器
+    docker run -ti --net host --name wenet_client \
+        -v $PWD/client:/ws/client \
+        -v $AUDIO_DATA:/ws/test_data \
+        wenet_client:latest
+
+    # 在容器中进行操作
+    cd /ws/client
+    # 进行测试
+    python3 client.py \
+        --wavscp=/ws/test_data/test_xmov_youling.scp  \
+        --data_dir=/ws/test_data \
+        --trans=/ws/test_data/test_xmov_youling.txt \
+        --model_name=streaming_wenet --streaming
+
+
 ## Introduction
 The below example shows how to deploy WeNet offline and online ASR models on GPUs.
 

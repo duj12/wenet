@@ -4,7 +4,7 @@
 
 # Use this to control how many gpu you use, It's 1-gpu training if you specify
 # just 1gpu, otherwise it's is multiple gpu training based on DDP in pytorch
-export CUDA_VISIBLE_DEVICES="0,1,2,3"
+export CUDA_VISIBLE_DEVICES="0"
 stage=$1 # start from 0 if you need to start from data preparation
 stop_stage=$2
 num_gpus=$(echo $CUDA_VISIBLE_DEVICES | awk -F "," '{print NF}')
@@ -23,14 +23,14 @@ node_rank=0
 
 feat_dir=raw_wav
 
-data_type=shard
+data_type=raw
 num_utts_per_shard=1000
 prefetch=100
 cmvn_sampling_divisor=100  # 20 means 5% of the training data to estimate cmvn
-train_set=train
-dev_set=dev
+train_set=train_xmov
+dev_set=test_xmov_inter
 
-test_sets="test_aishell test_net test_meeting test_conv test_libriclean  test_giga test_talcs test_htrs462 test_sjtcs test_xmov test_xmov_inter"
+test_sets="test_xmov_inter"
 
 # Optional train_config
 # 1. conf/train_transformer.yaml: Standard transformer
@@ -45,12 +45,12 @@ dict=data/dict_$en_modeling_unit/lang_char.txt
 cmvn=false   # do not use cmvn
 debug=false
 num_workers=2
-dir=exp/conformer_wavaug
+dir=exp/u2_xmov_youling
 checkpoint=
 
 # use average_checkpoint will get better result
 average_num=10
-average_checkpoint=true
+average_checkpoint=false
 decode_checkpoint=$dir/avg_${average_num}.pt
 #decode_modes="ctc_greedy_search ctc_prefix_beam_search
 #              attention attention_rescoring"
@@ -122,7 +122,7 @@ fi
 if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
   # Training
   mkdir -p $dir
-  checkpoint=$dir/15.pt
+  checkpoint=exp/conformer_wavaug/steps_360000.pt   #继续通用领域模型训练
   INIT_FILE=$dir/ddp_init
   # You had better rm it manually before you start run.sh on first node.
   # rm -f $INIT_FILE # delete old one before starting
@@ -162,7 +162,7 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
       --ddp.world_size $world_size \
       --ddp.rank $rank \
       --ddp.dist_backend $dist_backend \
-      --num_workers 2 \
+      --num_workers 1 \
       $cmvn_opts \
       --pin_memory \
       --bpe_model ${bpecode}
@@ -189,7 +189,7 @@ if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
   ctc_weight=0.5
   idx=0
   reverse_weight=0.0
-  nnlm_file=data/lm_transformer/valid.loss.ave_10best.pth
+  nnlm_file= #data/lm_transformer/valid.loss.ave_10best.pth
   lm_firstpass_weight=0.3
   lm_secondpass_weight=0.5
   if [ ! -z $nnlm_file ] ; then
@@ -202,7 +202,7 @@ if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
   nj=1
   CUDA_VISIBLE_DEVICES=""
   num_gpus=$(echo $CUDA_VISIBLE_DEVICES | awk -F "," '{print NF}')
-  test_sets="debug "
+  test_sets="test_xmov_inter "
   for test in ${test_sets}; do
 
   for mode in ${decode_modes}; do
@@ -317,11 +317,11 @@ if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
   test_sets="test_aishell test_net test_meeting test_libriclean  test_giga test_talcs test_htrs462 test_sjtcs test_conv test_xmov test_xmov_inter"
   test_sets="test_xmov_inter "
 
-  model_suffix="_quant"
+  model_suffix= #"_quant"
   CUDA_VISIBLE_DEVICES="0"
   num_gpus=$(echo $CUDA_VISIBLE_DEVICES | awk -F "," '{print NF}')
-  thread_num=25
-  warmup=20
+  thread_num=10
+  warmup=1
   nj=$num_gpus
   if [ ! -z $CUDA_VISIBLE_DEVICES ]; then
     decode_opts="--gpu_devices $CUDA_VISIBLE_DEVICES "$decode_opts

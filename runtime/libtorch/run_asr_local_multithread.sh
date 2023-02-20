@@ -5,8 +5,9 @@ thread_num=$1    # 线程数量作为脚本第一个入参传入
 export GLOG_logtostderr=1
 export GLOG_v=2
 
-#必备资源，这里建议使用final_quant.zip, 识别率性能只有约1%的相对下降，但是解码并发数量能够提升超过1倍（CPU20路->40路以上）。
-model_path=../resource/ASR/final_quant.zip    #端到端ASR识别模型文件路径，模型为final.zip， 量化模型为final_quant.zip
+#必备资源，CPU部署建议使用final_quant.zip, 识别率性能只有约1%的相对下降，但是解码并发数量能够提升超过1倍（CPU20路->40路以上）。
+# 注：当前pytorch官方量化模型只支持CPU推理，因此如果GPU推理, 则模型文件需选择非量化模型final.zip
+model_path=../resource/ASR/final.zip    #端到端ASR识别模型文件路径，模型为final.zip， 量化模型为final_quant.zip
 unit_path=../resource/ASR/lang_char.txt   #端到端ASR识别模型对应的建模单元路径
 
 #设定测试集

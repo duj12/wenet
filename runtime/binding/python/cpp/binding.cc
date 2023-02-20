@@ -1,4 +1,5 @@
 // Copyright (c) 2022  Binbin Zhang(binbzha@qq.com)
+//               2023  dujing
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -37,4 +38,6 @@ PYBIND11_MODULE(_wenet, m) {
   m.def("wenet_set_language", &wenet_set_language, "set language");
   m.def("wenet_set_continuous_decoding", &wenet_set_continuous_decoding,
         "enable continuous decoding or not");
+  m.def("wenet_set_vad_trailing_silence", &wenet_set_vad_trailing_silence,
+        "Set VAD trailing silence length, in ms.");
 }

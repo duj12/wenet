@@ -4,6 +4,9 @@
 
 general_ngram=data/lm_250G_5gram_chars/local/lm/lm.arpa
 domain_ngram=data/lm_asrtext_6gram_chars/local/lm/lm.arpa
+
+domain_text=data/train_xmov1/lm.txt
+
 dict=data/lm_asrtext_6gram_chars/local/dict/word.vocab
 merged_ngram=data/lm_250G_5gram+asrtext_6gram_chars/local/lm/lm.arpa
 
@@ -15,6 +18,25 @@ merged_name=`basename $merged_ngram`
 mkdir -p $merged_dir
 
 stage=0
+
+#对通用语言模型进行裁剪
+if [ $stage -le -2 ]; then
+  general_ngram_prune=1e-9
+  if [ ! -z $general_ngram_prune ]; then
+    prune_dir=`dirname $general_ngram`
+    prune_name=lm_prune${prune}.arpa
+    ngram -debug 1 -lm $general_ngram -prune $prune -write-lm $prune_dir/$prune_name
+    general_ngram=$prune_dir/$prune_name
+  fi
+fi
+
+#然后生成垂域语言模型
+if [ $stage -le -1 ]; then
+  if [ ! -f $domain_ngram ] && [ -f $domain_text ] ; then
+
+
+  fi
+fi
 
 if [ $stage -le 0 ]; then
 ngram -debug 2 -order 6 -lm $general_ngram -ppl $dev_text > $merged_dir/lm1.ppl

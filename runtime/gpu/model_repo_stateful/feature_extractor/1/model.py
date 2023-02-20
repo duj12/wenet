@@ -137,7 +137,7 @@ class TritonPythonModel:
         first_chunk_size = int(self.chunk_size)
         cur_frames = _kaldifeat.num_frames(first_chunk_size, opts.frame_opts)
         while cur_frames < self.decoding_window:
-            first_chunk_size += frame_shift_ms * sample_rate // 1000
+            first_chunk_size += int(frame_shift_ms * sample_rate) // 1000
             cur_frames = _kaldifeat.num_frames(first_chunk_size, opts.frame_opts)
         #  self.pad_silence = first_chunk_size - self.chunk_size
         self.first_chunk_size = first_chunk_size
@@ -155,7 +155,7 @@ class TritonPythonModel:
     def parse_model_params(self, model_params):
         model_p = {
             "frame_length_ms": 25,
-            "frame_shift_ms": 10,
+            "frame_shift_ms": 6.25,
             "sample_rate": 16000,
             "chunk_size_s": 0.64}
         # get parameter configurations

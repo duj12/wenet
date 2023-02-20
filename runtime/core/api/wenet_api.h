@@ -1,4 +1,5 @@
 // Copyright (c) 2022  Binbin Zhang (binbzha@qq.com)
+//               2023  dujing
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -103,6 +104,12 @@ void wenet_set_log_level(int level);
  *  flag > 0: enable, otherwise disable
  */
 void wenet_set_continuous_decoding(void* decoder, int flag);
+
+/** Give access to VAD trailing silence length.
+ *  the length is in ms, default = 1000 ms.
+ */
+void wenet_set_vad_trailing_silence(void* decoder, int length_in_ms);
+
 
 #ifdef __cplusplus
 }

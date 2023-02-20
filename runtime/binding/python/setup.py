@@ -29,7 +29,7 @@ class BuildExtension(build_ext):
             cmake_args += f" -DPYTHON_EXECUTABLE={sys.executable}"
 
         src_dir = os.path.dirname(os.path.abspath(__file__))
-        os.system(f"cmake {cmake_args} -B {self.build_temp} -S {src_dir}")
+        os.system(f"cmake {cmake_args} -B {self.build_temp} -S {src_dir} -DGPU=ON")
         ret = os.system(f"""
             cmake --build {self.build_temp} --target _wenet --config Release
         """)

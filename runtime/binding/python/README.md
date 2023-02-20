@@ -1,3 +1,23 @@
+# 使用说明
+
+## 安装方法
+
+    由于这个版本是不同于WeNet官方的版本，内部很多代码做过更改，因此不能直接使用官方的编译方法。
+
+    需要在本地克隆此代码仓库，然后运行
+    cd asr-online/binding/python
+    python setup.py install  
+    
+    默认的setup.py里面打开了GPU选项，如过只使用CPU，则需要将-DGPU=ON删除。
+    推荐使用torch==1.11.0+cu113, python==3.7或3.8均可, 经过测试此环境能正常运行。
+    
+## 接口修改与绑定
+    
+    目前已经开放的接口见api/wenet_api.cc，可以根据需要进行二次开发。
+    将接口绑定到python方法的具体代码可参阅cpp/bindding.cc。
+    同时，需要在py/decoder.py里将做过的改动进行同步。
+    
+
 # WeNet Python Binding
 
 This is a python binding of WeNet.

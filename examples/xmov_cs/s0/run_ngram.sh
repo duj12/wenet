@@ -30,10 +30,11 @@ original_vocab=data/lexicon/vocab.txt       # the original vocab list
 lm_corpus_paths=data/lm_corpus/train.list    # the sub-text's path list
 lm_test_paths=data/lm_corpus/test.list
 
-order=4          #the grade of n-gram
-prune=0.000000001   #prune 10e-9
-chinese_unit=words
-LM_name="lm_250G_${order}gram_"$chinese_unit   #give lm a specific name, in case you train many different lms
+
+order=4          #the grade of n-gram. 250G corpus 5-gram consume about 680G memory.
+prune=0.000000001   #prune
+chinese_unit=chars
+LM_name="lm_250G_${order}gram+asrtext_6gram_"$chinese_unit   #give lm a specific name, in case you train many different lms
 
 dict_path=data/$LM_name/local/dict
 mkdir -p $dict_path
@@ -98,6 +99,9 @@ if [ ${stage} -le 1 ] && [ ${stop_stage} -ge 1 ]; then
   echo "1. Prepare dict: convert each word(for chinese we use chars/words) into bpe units."
   echo
   chinese_bpe_is_char=1    # the bpe model is trained with chinese chars and english bpe
+  if [ $chinese_unit = "chars" ]; then
+    chinese_bpe_is_char=0  # 设为0确保将除了bpe_vocab中的单个汉字之外的词排除出词表之外
+  fi
   tools/fst/prepare_dict.py $unit_file $original_lexicon \
     $converted_lexicon ${bpecode} ${chinese_bpe_is_char}
 fi
@@ -113,7 +117,7 @@ if [ ${stage} -le 2 ] && [ ${stop_stage} -ge 2 ]; then
   echo
   echo "Test the lm.arpa in ${lm_path} in file list ${lm_test_paths}."
   for test_set_path in `cat $lm_test_paths`; do
-    ngram -ppl ${test_set_path} -order $order -lm $lm_path/lm.arpa #-debug 2
+    ngram -ppl ${test_set_path} -order $order -lm $lm_path/lm.arpa  #-debug 2
   done
   echo
 fi

@@ -1,4 +1,5 @@
 // Copyright (c) 2022  Binbin Zhang (binbzha@qq.com)
+//               2023  dujing
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -164,6 +165,10 @@ class Recognizer {
   void set_context_score(float score) { context_score_ = score; }
   void set_language(const char* lang) { language_ = lang; }
   void set_continuous_decoding(bool flag) { continuous_decoding_ = flag; }
+  //Give access to VAD trailing silence length
+  void set_vad_trailing_silence(const int length_in_ms) {
+    decode_options_->ctc_endpoint_config.rule2.min_trailing_silence = length_in_ms;
+  }
 
  private:
   // NOTE(Binbin Zhang): All use shared_ptr for clone in the future
@@ -242,4 +247,9 @@ void wenet_set_language(void* decoder, const char* lang) {
 void wenet_set_continuous_decoding(void* decoder, int flag) {
   Recognizer* recognizer = reinterpret_cast<Recognizer*>(decoder);
   recognizer->set_continuous_decoding(flag > 0);
+}
+
+void wenet_set_vad_trailing_silence(void* decoder, int length_in_ms) {
+  Recognizer* recognizer = reinterpret_cast<Recognizer*>(decoder);
+  recognizer->set_vad_trailing_silence(length_in_ms);
 }
