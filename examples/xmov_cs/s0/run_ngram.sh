@@ -15,12 +15,6 @@ for ((i=0;i<${thread_num};i++));do
     echo
 done >&6
 
-
-stage=$1
-stop_stage=$2
-
-. tools/parse_options.sh || exit 1;
-
 # This bpe model is trained on ESPnet ASR xmov_cs/asr2 training data set.
 # ALL paths are relative path
 bpecode=conf/zh6300char_en5700bpe.model
@@ -31,10 +25,19 @@ lm_corpus_paths=data/lm_corpus/train.list    # the sub-text's path list
 lm_test_paths=data/lm_corpus/test.list
 
 
-order=4          #the grade of n-gram. 250G corpus 5-gram consume about 680G memory.
-prune=0.000000001   #prune
+order=6          #the grade of n-gram. 250G corpus 5-gram consume about 680G memory.
+prune=0 #0.000000001   #prune
 chinese_unit=chars
-LM_name="lm_250G_${order}gram+asrtext_6gram_"$chinese_unit   #give lm a specific name, in case you train many different lms
+#give lm a specific name, in case you train many different LMs
+LM_name=  #"lm_250G_${order}gram+asrtext_6gram_"$chinese_unit
+
+
+. tools/parse_options.sh || exit 1;
+
+
+stage=$1
+stop_stage=$2
+echo "LM_name is $LM_name"
 
 dict_path=data/$LM_name/local/dict
 mkdir -p $dict_path
@@ -59,7 +62,7 @@ if [ ${stage} -le 0 ] && [ ${stop_stage} -ge 0 ] ; then
 
   if [ $chinese_unit = "chars" ] ; then
     echo "split Chinese text into ${chinese_unit}."
-    for path_list in $lm_test_paths   ; do
+    for path_list in $lm_test_paths  $lm_corpus_paths ; do
       for text_path in `cat $path_list` ; do
         read -u6
         {
@@ -77,7 +80,7 @@ if [ ${stage} -le 0 ] && [ ${stop_stage} -ge 0 ] ; then
     echo "split Chinese text into ${chinese_unit}."
     cp $original_vocab tools/friso/dict/UTF-8/
     #process train corpus, in batch(multi-job)
-    for path_list in $lm_test_paths   ; do
+    for path_list in $lm_test_paths  $lm_corpus_paths ; do
       for text_path in `cat $path_list` ; do
         read -u6
         {

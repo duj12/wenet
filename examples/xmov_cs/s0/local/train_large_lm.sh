@@ -1,5 +1,5 @@
 #!/bin/bash
-stage=3
+stage=1
 stop_stage=3
 
 tmp_fifofile="/tmp/$$.fifo"
@@ -107,7 +107,9 @@ $root_path/local/make-big-lm -read $root_path/$dir/counts/*.ngrams.gz \
     -order $order -limit-vocab -vocab $root_path/$lexicon -unk -map-unk "<UNK>" \
     -kndiscount  -interpolate -prune $prune -lm $root_path/$dir/lm.arpa
 cd $root_path
-#用法同ngram-counts   -kndiscount -interpolate  OR -wbdiscount
+#用法同ngram-counts， 关于平滑算法
+# 比较大的语料，一般用 -kndiscount -interpolate
+# 比较小的语料，一般用 -wbdiscount
 fi
 
 
