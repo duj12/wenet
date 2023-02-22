@@ -71,14 +71,14 @@ if __name__ == '__main__':
                         default=16000,
                         help='sample rate used in training')
     parser.add_argument('--frame_length_ms',
-                        type=int,
+                        type=float,
                         required=False,
                         default=25,
                         help='frame length')
     parser.add_argument('--frame_shift_ms',
-                        type=int,
+                        type=float,
                         required=False,
-                        default=10,
+                        default=6.25,
                         help='frame shift length')
     parser.add_argument('--chunk_size',
                         type=int,

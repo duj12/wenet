@@ -1,3 +1,79 @@
+# 使用说明
+与WeNet官方有所区别，我们针对模型架构等做了一些调整，核心推理代码也有所改变。
+因此部署过程也需要做出相应的调整，需要使用内部的代码https://git.xmov.ai/dujing/asr-online。
+
+##一、推荐：本地宿主机编译作为服务端，构建websocket流式服务
+步骤如下：
+    
+    cd libtorch
+    mkdir build && cd build && cmake .. && cmake --build .
+  
+如果需要编译GPU版本
+  
+    mkdir build && cd build && cmake -DGPU=ON .. && cmake --build .
+
+然后将模型资源从S:\users\dujing\asr-online\resource拷贝到当前项目根目录（默认为asr-online）下
+  
+再在libtorch目录下运行
+  
+    ./run_asr_server.sh
+
+最后用浏览器打开libtorch/web/templates/index.html, 将ip替换为启动服务的服务器ip,即可开始流式识别。
+
+##二、构建docker镜像进行部署
+步骤如下：
+0. 克隆代码（由于是私库，所以放到dockerfile中克隆会引起不必要的麻烦）
+```shell
+# `pwd`=asr-online/libtorch 当前路径为libtorch下
+cd docker 
+# 首先在机器上配置好公司内部的git账号，才能正常下载
+# 这里确定docker/asr-online 为代码临时保存路径，方便直接打包到镜像中
+git clone git@git.xmov.ai:dujing/asr-online.git asr-online
+```
+
+1. 构建容器 
+```shell
+
+# Dockerfile中将运行路径设置为/workspace/asr-online
+# Dockerfile默认编译CPU版本，如需编译GPU版本，则需要在Dockerfile中添加 -DGPU=ON编译选项
+docker build --no-cache -t wenet:latest .
+```
+
+2. 准备所需的资源
+```shell
+cd ../..
+# `pwd`=asr-online, 当前路径回到asr-online根目录
+mkdir -p resource #所需资源放置在根目录下比较合适
+# 所需模型资源放置在共享路径S:\users\dujing\asr-online\resource
+cp -r <your_resource_dir> resource
+```
+
+3. 启动容器，并映射路径.
+```shell
+#`pwd`=asr-online 
+docker run --rm -v $PWD/resource:/workspace/asr-online/resource -it wenet bash
+```
+4. 容器中直接测试
+```shell
+cd /workspace/asr-online/libtorch
+export GLOG_logtostderr=1
+export GLOG_v=2
+#wav_path=../resource/WAV/19louzhibo.wav
+wav_dir=../resource/WAV/test_xmov_youling
+wav_scp=../resource/WAV/test_xmov_youling.list
+find $wav_dir -name "*.wav" | awk -F"/" -v name="" \
+  '{name=$NF; gsub(".wav", "", name); print name" "$0 }' | sort > $wav_scp
+model_dir=../resource/ASR
+./build/bin/decoder_main \
+    --chunk_size 16 \
+    --min_trailing_silence 800 \
+    --wav_scp $wav_scp \
+    --model_path $model_dir/final.zip \
+    --unit_path $model_dir/units.txt 2>&1 | tee log.txt
+
+```
+
+
 # WeNet Server (x86) ASR Demo
 
 **[中文版:x86 平台上使用 WeNet 进行语音识别](./README_CN.md)**

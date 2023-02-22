@@ -4,7 +4,8 @@ LABEL repository="tritonserver"
 
 RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/3bf863cc.pub
 RUN apt-get update && apt-get -y install swig && apt-get -y install python3-dev && apt-get install -y cmake
-RUN pip3 install -i https://pypi.tuna.tsinghua.edu.cn/simple torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu113
+RUN pip3 install -i https://pypi.tuna.tsinghua.edu.cn/simple torch==1.11.0+cu113 \
+    torchvision==0.12.0+cu113 torchaudio==0.11.0 --extra-index-url https://download.pytorch.org/whl/cu113
 RUN pip3 install -v kaldifeat
 RUN pip3 install pyyaml onnx
 WORKDIR /workspace
