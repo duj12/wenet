@@ -119,7 +119,7 @@ class ASRModel(torch.nn.Module):
         else:
             loss = self.ctc_weight * loss_ctc + (1 -
                                                  self.ctc_weight) * loss_att
-        return {"loss": loss, "loss_att": loss_att, "loss_ctc": loss_ctc}
+        return {"loss": loss, "loss_att": loss_att, "loss_ctc": loss_ctc, "encoder_out": encoder_out, }
 
     def _calc_att_loss(
         self,

@@ -314,24 +314,24 @@ if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
     tools/fst/make_tlg.sh data/local/lm data/local/lang data/lang_test || exit 1;
   fi
   # 7.4 Decoding with runtime
-  test_sets="test_aishell test_net test_meeting test_libriclean  test_giga test_talcs test_htrs462 test_sjtcs test_conv test_xmov"
-  test_sets="train_xmov+ "
+  test_sets="test_aishell test_net test_meeting test_libriclean  test_giga test_talcs test_htrs462 test_sjtcs test_conv test_xmov test_xmov_inter"
+  test_sets="test_xmov_inter "
 
   model_suffix= #"_quant"
   CUDA_VISIBLE_DEVICES="2"
   num_gpus=$(echo $CUDA_VISIBLE_DEVICES | awk -F "," '{print NF}')
   thread_num=1
   warmup=1
-  nj=8  #$num_gpus
+  nj=16  #$num_gpus
   if [ ! -z $CUDA_VISIBLE_DEVICES ]; then
     decode_opts="--gpu_devices $CUDA_VISIBLE_DEVICES "$decode_opts
   else
     decode_opts=""$decode_opts
   fi
-  use_lm=0
+  use_lm=1
   length_penalty=-4.0
-  lm=lm_250G_4gram+asrtext_6gram_chars
-  context_path="data/hot_words.txt"
+  lm=lm_250G_4gram+YouLing_6gram_chars
+  context_path= #"data/hot_words.txt"
   if [ ! -z $context_path ]; then
     decode_suffix="_with_context"
     decode_opts="--context_path $context_path --context_score 3 "$decode_opts

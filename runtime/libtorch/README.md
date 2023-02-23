@@ -2,25 +2,27 @@
 与WeNet官方有所区别，我们针对模型架构等做了一些调整，核心推理代码也有所改变。
 因此部署过程也需要做出相应的调整，需要使用内部的代码https://git.xmov.ai/dujing/asr-online。
 
-##一、推荐：本地宿主机编译作为服务端，构建websocket流式服务
+## 一、推荐：本地编译作为服务端，构建websocket流式服务
 步骤如下：
-    
-    cd libtorch
-    mkdir build && cd build && cmake .. && cmake --build .
+```shell
+cd libtorch
+mkdir build && cd build && cmake .. && cmake --build .
+```
   
 如果需要编译GPU版本
-  
-    mkdir build && cd build && cmake -DGPU=ON .. && cmake --build .
+```shell
+mkdir build && cd build && cmake -DGPU=ON .. && cmake --build .
+```
 
 然后将模型资源从S:\users\dujing\asr-online\resource拷贝到当前项目根目录（默认为asr-online）下
   
 再在libtorch目录下运行
-  
-    ./run_asr_server.sh
-
+```shell
+bash ./run_asr_server.sh
+```  
 最后用浏览器打开libtorch/web/templates/index.html, 将ip替换为启动服务的服务器ip,即可开始流式识别。
 
-##二、构建docker镜像进行部署
+## 二、构建docker镜像进行部署，Docker也可以作为服务端
 步骤如下：
 0. 克隆代码（由于是私库，所以放到dockerfile中克隆会引起不必要的麻烦）
 ```shell
@@ -35,7 +37,7 @@ git clone git@git.xmov.ai:dujing/asr-online.git asr-online
 ```shell
 
 # Dockerfile中将运行路径设置为/workspace/asr-online
-# Dockerfile默认编译CPU版本，如需编译GPU版本，则需要在Dockerfile中添加 -DGPU=ON编译选项
+# Dockerfile默认编译GPU版本，如需编译CPU版本，则需要在Dockerfile中删除”-DGPU=ON“编译选项
 docker build --no-cache -t wenet:latest .
 ```
 
@@ -70,8 +72,15 @@ model_dir=../resource/ASR
     --wav_scp $wav_scp \
     --model_path $model_dir/final.zip \
     --unit_path $model_dir/units.txt 2>&1 | tee log.txt
+```
+5. 或者映射容器端口(demo监听容器的10086,将其映射成宿主的8086端口)，在容器中启动websocket服务，供客户端调用。
+```shell
+docker run --rm -p 8086:10086 -v $PWD/resource:/workspace/asr-online/resource -it wenet bash
+cd /workspace/asr-online/libtorch
+bash ./run_asr_server.sh
 
 ```
+6. 最后用浏览器打开libtorch/web/templates/index.html, 将ip替换为启动服务的服务器ip:8086,即可开始流式识别。
 
 
 # WeNet Server (x86) ASR Demo

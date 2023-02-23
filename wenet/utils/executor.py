@@ -27,7 +27,7 @@ class Executor:
         self.step = 0
 
     def train(self, model, optimizer, scheduler, data_loader, device, writer,
-              args, scaler, cv_data_loader=None):
+              args, scaler, teacher_model=None, cv_data_loader=None):
         ''' Train one epoch
         '''
         model.train()
@@ -77,9 +77,18 @@ class Executor:
                     # The more details about amp can be found in
                     # https://pytorch.org/docs/stable/notes/amp_examples.html
                     with torch.cuda.amp.autocast(scaler is not None):
-                        loss_dict = model(feats, feats_lengths, target,
-                                          target_lengths)
+                        loss_dict = model(feats, feats_lengths, target, target_lengths)
                         loss = loss_dict['loss'] / accum_grad
+                        # get distillation loss
+                        if not teacher_model is None:
+                            encoder_out = loss_dict['encoder_out']
+                            teacher_encoder_out, _ = teacher_model.encoder(feats, feats_lengths)
+                            distill_loss = torch.nn.functional.kl_div(encoder_out.softmax(dim=-1).log(),
+                                                                        teacher_encoder_out.softmax(dim=-1),
+                                                                        reduction='sum')
+                            loss_dict['loss_distill'] = distill_loss
+                            teacher_distill_weight = args.get('teacher_distill_weight', 0)
+                            loss = (1 - teacher_distill_weight) * loss + teacher_distill_weight * distill_loss
                     if use_amp:
                         scaler.scale(loss).backward()
                     else:
@@ -146,7 +155,7 @@ class Executor:
                         epoch, batch_idx,
                         loss.item() * accum_grad)
                     for name, value in loss_dict.items():
-                        if name != 'loss' and value is not None:
+                        if name.startswith('loss_') and value is not None:
                             log_str += '{} {:.6f} '.format(name, value.item())
                     log_str += 'lr {:.8f} rank {}'.format(lr, rank)
                     logging.debug(log_str)
@@ -181,7 +190,7 @@ class Executor:
                     log_str = 'CV Batch {}/{} loss {:.6f} '.format(
                         epoch, batch_idx, loss.item())
                     for name, value in loss_dict.items():
-                        if name != 'loss' and value is not None:
+                        if name.startswith('loss_') and value is not None:
                             log_str += '{} {:.6f} '.format(name, value.item())
                     log_str += 'history loss {:.6f}'.format(total_loss /
                                                             num_seen_utts)

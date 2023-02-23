@@ -121,6 +121,10 @@ def get_args():
                         type=int,
                         help='num of steps the checkpoint be saved.')
 
+    parser.add_argument('--teacher_config', required=False, help='teacher config file')
+    parser.add_argument('--teacher_checkpoint', help='teacher checkpoint model')
+    parser.add_argument('--teacher_distill_weight', default=0.2, type=float, help='distill loss weight')
+
     args = parser.parse_args()
     return args
 
@@ -202,6 +206,19 @@ def main():
     num_params = sum(p.numel() for p in model.parameters())
     print('the number of model params: {:,d}'.format(num_params))
 
+    # if we give a teacher model, we can use it to distill the student
+    # make sure the teacher and student share the same dict
+    teacher_model=None
+    configs['teacher_distill_weight'] = args.teacher_distill_weight if hasattr(args, 'teacher_distill_weight') else 0
+    if hasattr(args, 'teacher_config') and hasattr(args, 'teacher_checkpoint'):
+        with open(args.teacher_config, 'r') as fin:
+            teacher_configs = yaml.load(fin, Loader=yaml.FullLoader)
+        # Init teacher model from configs
+        teacher_model = init_model(teacher_configs)
+        load_checkpoint(teacher_model, args.teacher_checkpoint)
+        logging.info('load teacher model: {}'.format(args.teacher_checkpoint))
+        teacher_model.eval()
+
     # !!!IMPORTANT!!!
     # Try to export the model by script, if fails, we should refine
     # the code to satisfy the script export requirements
@@ -236,6 +253,7 @@ def main():
         model = torch.nn.parallel.DistributedDataParallel(
             model, find_unused_parameters=True)
         device = torch.device("cuda")
+
         if args.fp16_grad_sync:
             from torch.distributed.algorithms.ddp_comm_hooks import (
                 default as comm_hooks,
@@ -243,10 +261,17 @@ def main():
             model.register_comm_hook(
                 state=None, hook=comm_hooks.fp16_compress_hook
             )
+
+        if not teacher_model is None:
+            teacher_model = teacher_model.to(device)
+
     else:
         use_cuda = args.gpu >= 0 and torch.cuda.is_available()
         device = torch.device('cuda' if use_cuda else 'cpu')
         model = model.to(device)
+
+        if not teacher_model is None:
+            teacher_model = teacher_model.to(device)
 
     if configs['optim'] == 'adam':
         optimizer = optim.Adam(model.parameters(), **configs['optim_conf'])
@@ -285,7 +310,7 @@ def main():
         lr = optimizer.param_groups[0]['lr']
         logging.info('Epoch {} TRAIN info init lr {}'.format(epoch, lr))
         executor.train(model, optimizer, scheduler, train_data_loader, device,
-                       writer, configs, scaler)
+                       writer, configs, scaler, teacher_model)
         total_loss, num_seen_utts = executor.cv(model, cv_data_loader, device,
                                                 configs)
         cv_loss = total_loss / num_seen_utts

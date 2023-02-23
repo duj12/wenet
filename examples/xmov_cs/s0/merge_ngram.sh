@@ -23,7 +23,9 @@ merged_dir=`dirname $merged_ngram`
 merged_name=`basename $merged_ngram`
 mkdir -p $merged_dir
 
-stage=-1
+dict_path=`dirname $dict`
+
+stage=3
 
 #生成垂域语言模型
 if [ $stage -le -2 ]; then
@@ -31,6 +33,7 @@ if [ $stage -le -2 ]; then
     echo "-2. make a domain ngram. with $domain_text_list, to data/$domain_lm_name"
     ./run_ngram.sh --lm_corpus_paths $domain_text_list --order 6 --prune $domain_ngram_prune \
       --chinese_unit chars  --LM_name $domain_lm_name  0  2
+    dict_path=data/$domain_lm_name/local/dict
   fi
 
 fi
@@ -84,7 +87,7 @@ if [ ${stage} -le 3 ] && [ 1 -eq 1 ]; then
 tmp_path=data/$merged_lm_name/local/tmp
 lang_path=data/$merged_lm_name/local/lang
 fst_path=data/$merged_lm_name/lang_test
-  tools/fst/compile_lexicon_token_fst.sh  $dict $tmp_path $lang_path
+  tools/fst/compile_lexicon_token_fst.sh  $dict_path $tmp_path $lang_path
   tools/fst/make_tlg.sh $lm_path $lang_path $fst_path || exit 1;
 fi
 

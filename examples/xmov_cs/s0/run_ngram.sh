@@ -21,8 +21,8 @@ bpecode=conf/zh6300char_en5700bpe.model
 unit_file=data/dict_bpe/tokens.txt          # the AM's model unit, which is corresponding to bpecode
 original_lexicon=data/lexicon/lexicon.txt   # the original lexicon, may with pronunciation
 original_vocab=data/lexicon/vocab.txt       # the original vocab list
-lm_corpus_paths=data/lm_corpus/train.list    # the sub-text's path list
-lm_test_paths=data/lm_corpus/test.list
+lm_corpus_paths= #data/lm_corpus/train.list    # the sub-text's path list
+lm_test_paths= #data/lm_corpus/test.list
 
 
 order=6          #the grade of n-gram. 250G corpus 5-gram consume about 680G memory.
