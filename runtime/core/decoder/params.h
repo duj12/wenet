@@ -225,7 +225,8 @@ std::shared_ptr<DecodeResource> InitDecodeResourceFromFlags() {
     config.context_score = FLAGS_context_score;
     resource->context_graph = std::make_shared<ContextGraph>(config);
     resource->context_graph->BuildContextGraph(contexts,
-                                               resource->symbol_table);
+                                               resource->symbol_table,
+                                               !FLAGS_fst_path.empty());
   }
 
   PostProcessOptions post_process_opts;

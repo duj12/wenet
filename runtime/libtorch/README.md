@@ -24,7 +24,8 @@ bash ./run_asr_server.sh
 
 ## 二、构建docker镜像进行部署，Docker也可以作为服务端
 步骤如下：
-0. 克隆代码（由于是私库，所以放到dockerfile中克隆会引起不必要的麻烦）
+
+1.克隆代码（由于是私库，所以放到dockerfile中克隆会引起不必要的麻烦）
 ```shell
 # `pwd`=asr-online/libtorch 当前路径为libtorch下
 cd docker 
@@ -32,16 +33,13 @@ cd docker
 # 这里确定docker/asr-online 为代码临时保存路径，方便直接打包到镜像中
 git clone git@git.xmov.ai:dujing/asr-online.git asr-online
 ```
-
-1. 构建容器 
+2.构建容器 
 ```shell
-
 # Dockerfile中将运行路径设置为/workspace/asr-online
 # Dockerfile默认编译GPU版本，如需编译CPU版本，则需要在Dockerfile中删除”-DGPU=ON“编译选项
 docker build --no-cache -t wenet:latest .
 ```
-
-2. 准备所需的资源
+3.准备所需的资源
 ```shell
 cd ../..
 # `pwd`=asr-online, 当前路径回到asr-online根目录
@@ -49,13 +47,12 @@ mkdir -p resource #所需资源放置在根目录下比较合适
 # 所需模型资源放置在共享路径S:\users\dujing\asr-online\resource
 cp -r <your_resource_dir> resource
 ```
-
-3. 启动容器，并映射路径.
+4.启动容器，并映射路径.
 ```shell
 #`pwd`=asr-online 
 docker run --rm -v $PWD/resource:/workspace/asr-online/resource -it wenet bash
 ```
-4. 容器中直接测试
+5.容器中直接测试
 ```shell
 cd /workspace/asr-online/libtorch
 export GLOG_logtostderr=1
@@ -73,14 +70,13 @@ model_dir=../resource/ASR
     --model_path $model_dir/final.zip \
     --unit_path $model_dir/units.txt 2>&1 | tee log.txt
 ```
-5. 或者映射容器端口(demo监听容器的10086,将其映射成宿主的8086端口)，在容器中启动websocket服务，供客户端调用。
+6.或者映射容器端口(demo监听容器的10086,将其映射成宿主的8086端口)，在容器中启动websocket服务，供客户端调用。
 ```shell
 docker run --rm -p 8086:10086 -v $PWD/resource:/workspace/asr-online/resource -it wenet bash
 cd /workspace/asr-online/libtorch
 bash ./run_asr_server.sh
-
 ```
-6. 最后用浏览器打开libtorch/web/templates/index.html, 将ip替换为启动服务的服务器ip:8086,即可开始流式识别。
+7.最后用浏览器打开libtorch/web/templates/index.html, 将ip替换为启动服务的服务器ip:8086,即可开始流式识别。
 
 
 # WeNet Server (x86) ASR Demo

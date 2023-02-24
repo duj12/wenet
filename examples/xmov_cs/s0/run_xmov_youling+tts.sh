@@ -4,7 +4,7 @@
 
 # Use this to control how many gpu you use, It's 1-gpu training if you specify
 # just 1gpu, otherwise it's is multiple gpu training based on DDP in pytorch
-export CUDA_VISIBLE_DEVICES="1"
+export CUDA_VISIBLE_DEVICES="3"
 stage=$1 # start from 0 if you need to start from data preparation
 stop_stage=$2
 num_gpus=$(echo $CUDA_VISIBLE_DEVICES | awk -F "," '{print NF}')
@@ -45,7 +45,7 @@ dict=data/dict_$en_modeling_unit/lang_char.txt
 cmvn=false   # do not use cmvn
 debug=false
 num_workers=2
-dir=exp/u2_xmov_youling2_distill
+dir=exp/u2_xmov_youling2
 checkpoint=
 
 # use average_checkpoint will get better result
@@ -165,10 +165,7 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
       --num_workers 1 \
       $cmvn_opts \
       --pin_memory \
-      --bpe_model ${bpecode} \
-      --teacher_config  exp/conformer_wavaug/train.yaml \
-      --teacher_checkpoint exp/conformer_wavaug/41.pt \
-      --teacher_distill_weight 0.5
+      --bpe_model ${bpecode}
   } &
   done
   wait
@@ -321,11 +318,11 @@ if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
   test_sets="test_xmov_inter "
 
   model_suffix= #"_quant"
-  CUDA_VISIBLE_DEVICES="0"
+  CUDA_VISIBLE_DEVICES="3"
   num_gpus=$(echo $CUDA_VISIBLE_DEVICES | awk -F "," '{print NF}')
   thread_num=1
   warmup=1
-  nj=8  #$num_gpus
+  nj=16  #$num_gpus
   if [ ! -z $CUDA_VISIBLE_DEVICES ]; then
     decode_opts="--gpu_devices $CUDA_VISIBLE_DEVICES "$decode_opts
   else
@@ -334,7 +331,7 @@ if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
   use_lm=1
   length_penalty=-4.0
   lm=lm_250G_4gram+YouLing_6gram_chars
-  context_path= #"data/hot_words.txt"
+  context_path="data/hot_words.txt"
   if [ ! -z $context_path ]; then
     decode_suffix="_with_context"
     decode_opts="--context_path $context_path --context_score 3 "$decode_opts

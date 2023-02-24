@@ -58,8 +58,10 @@ class Recognizer {
       CHECK(wenet::FileExists(symbol_path));
       resource_->symbol_table = std::shared_ptr<fst::SymbolTable>(
           fst::SymbolTable::ReadText(symbol_path));
+      use_lm_symbols_ = true;
     } else {  // Without LM, symbol_table is the same as unit_table
       resource_->symbol_table = resource_->unit_table;
+      use_lm_symbols_ = false;
     }
 
     // Context config init
@@ -85,7 +87,7 @@ class Recognizer {
       context_config_->context_score = context_score_;
       auto context_graph =
           std::make_shared<wenet::ContextGraph>(*context_config_);
-      context_graph->BuildContextGraph(context_, resource_->symbol_table);
+      context_graph->BuildContextGraph(context_, resource_->symbol_table, use_lm_symbols_);
       resource_->context_graph = context_graph;
     }
     // PostProcessor
@@ -187,6 +189,7 @@ class Recognizer {
   float context_score_;
   std::string language_ = "chs";
   bool continuous_decoding_ = false;
+  bool use_lm_symbols_ = false;
 };
 
 void* wenet_init(const char* model_dir) {

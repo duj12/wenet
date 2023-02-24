@@ -45,7 +45,7 @@ dict=data/dict_$en_modeling_unit/lang_char.txt
 cmvn=false   # do not use cmvn
 debug=false
 num_workers=2
-dir=exp/u2_xmov_youling
+dir=exp/u2_xmov_youling_distill
 checkpoint=
 
 # use average_checkpoint will get better result
@@ -165,7 +165,10 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
       --num_workers 1 \
       $cmvn_opts \
       --pin_memory \
-      --bpe_model ${bpecode}
+      --bpe_model ${bpecode} \
+      --teacher_config  exp/conformer_wavaug/train.yaml \
+      --teacher_checkpoint exp/conformer_wavaug/41.pt \
+      --teacher_distill_weight 0.5
   } &
   done
   wait

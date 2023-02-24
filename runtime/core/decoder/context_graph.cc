@@ -1,4 +1,5 @@
 // Copyright (c) 2021 Mobvoi Inc (Zhendong Peng)
+//               2023 dujing
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -28,7 +29,8 @@ ContextGraph::ContextGraph(ContextConfig config) : config_(config) {}
 
 void ContextGraph::BuildContextGraph(
     const std::vector<std::string>& query_contexts,
-    const std::shared_ptr<fst::SymbolTable>& symbol_table) {
+    const std::shared_ptr<fst::SymbolTable>& symbol_table,
+    bool use_lm_symbols) {
   CHECK(symbol_table != nullptr) << "Symbols table should not be nullptr!";
   start_tag_id_ = symbol_table->AddSymbol("<context>");
   end_tag_id_ = symbol_table->AddSymbol("</context>");
@@ -55,7 +57,7 @@ void ContextGraph::BuildContextGraph(
 
     std::vector<std::string> words;
     // Split context to words by symbol table, and build the context graph.
-    bool no_oov = SplitUTF8StringToWords(Trim(context), symbol_table, &words);
+    bool no_oov = SplitUTF8StringToWords(Trim(context), symbol_table, &words, use_lm_symbols);
     if (!no_oov) {
       LOG(WARNING) << "Ignore unknown word found during compilation.";
       continue;
@@ -112,7 +114,8 @@ int ContextGraph::GetNextState(int cur_state, int word_id, float* score,
 bool ContextGraph::SplitUTF8StringToWords(
     const std::string& str,
     const std::shared_ptr<fst::SymbolTable>& symbol_table,
-    std::vector<std::string>* words) {
+    std::vector<std::string>* words, 
+    bool use_lm_symbols ) {
   std::vector<std::string> chars;
   SplitUTF8StringToChars(Trim(str), &chars);
 
@@ -128,8 +131,9 @@ bool ContextGraph::SplitUTF8StringToWords(
         start = end;
         continue;
       }
-      // Add '▁' at the beginning of English word.
-      if (IsAlpha(word)) {
+      // Add '▁' at the beginning of English word, when when use units.txt as symbols.
+      // If we use words.txt as symbols, there is no kSpaceSymbol in words.txt
+      if (IsAlpha(word) && !use_lm_symbols) {
         word = kSpaceSymbol + word;
       }
 

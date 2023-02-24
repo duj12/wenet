@@ -1,4 +1,5 @@
 // Copyright (c) 2021 Mobvoi Inc (Zhendong Peng)
+//               2023 dujing
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -39,7 +40,8 @@ class ContextGraph {
  public:
   explicit ContextGraph(ContextConfig config);
   void BuildContextGraph(const std::vector<std::string>& query_context,
-                         const std::shared_ptr<fst::SymbolTable>& symbol_table);
+                         const std::shared_ptr<fst::SymbolTable>& symbol_table,
+                         bool use_lm_symbols);
   int GetNextState(int cur_state, int word_id, float* score,
                    bool* is_start_boundary, bool* is_end_boundary);
 
@@ -50,7 +52,8 @@ class ContextGraph {
   bool SplitUTF8StringToWords(
       const std::string& str,
       const std::shared_ptr<fst::SymbolTable>& symbol_table,
-      std::vector<std::string>* words);
+      std::vector<std::string>* words,
+      bool use_lm_symbols);
 
   int start_tag_id_ = -1;
   int end_tag_id_ = -1;

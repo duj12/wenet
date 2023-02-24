@@ -85,7 +85,7 @@ class Executor:
                             teacher_encoder_out, _ = teacher_model.encoder(feats, feats_lengths)
                             distill_loss = torch.nn.functional.kl_div(encoder_out.softmax(dim=-1).log(),
                                                                         teacher_encoder_out.softmax(dim=-1),
-                                                                        reduction='sum')
+                                                                        reduction='batchmean')
                             loss_dict['loss_distill'] = distill_loss
                             teacher_distill_weight = args.get('teacher_distill_weight', 0)
                             loss = (1 - teacher_distill_weight) * loss + teacher_distill_weight * distill_loss

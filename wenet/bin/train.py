@@ -210,7 +210,7 @@ def main():
     # make sure the teacher and student share the same dict
     teacher_model=None
     configs['teacher_distill_weight'] = args.teacher_distill_weight if hasattr(args, 'teacher_distill_weight') else 0
-    if hasattr(args, 'teacher_config') and hasattr(args, 'teacher_checkpoint'):
+    if hasattr(args, 'teacher_config') and args.teacher_config is not None and hasattr(args, 'teacher_checkpoint'):
         with open(args.teacher_config, 'r') as fin:
             teacher_configs = yaml.load(fin, Loader=yaml.FullLoader)
         # Init teacher model from configs
