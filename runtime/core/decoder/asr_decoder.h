@@ -1,5 +1,6 @@
 // Copyright (c) 2020 Mobvoi Inc (Binbin Zhang, Di Wu)
 //               2022 Binbin Zhang (binbzha@qq.com)
+//               2023 dujing
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -127,6 +128,7 @@ class AsrDecoder {
            feature_pipeline_->config().sample_rate;
   }
   const std::vector<DecodeResult>& result() const { return result_; }
+  const CtcEndpoint::VADState GetVADState() const { return vad_state_; }
 
  private:
   DecodeState AdvanceDecoding(bool block = true);
@@ -153,6 +155,7 @@ class AsrDecoder {
 
   std::unique_ptr<SearchInterface> searcher_;
   std::unique_ptr<CtcEndpoint> ctc_endpointer_;
+  CtcEndpoint::VADState vad_state_ = CtcEndpoint::VADState::kVadNotActivated; 
 
   int num_frames_in_current_chunk_ = 0;
   std::vector<DecodeResult> result_;

@@ -156,6 +156,7 @@ class Recognizer {
       one["sentence"] = decoder_->result()[i].sentence;
       obj["nbest"].append(one);
     }
+    obj["vad_state"] = (int)decoder_->GetVADState();
     result_ = obj.dump();
   }
 

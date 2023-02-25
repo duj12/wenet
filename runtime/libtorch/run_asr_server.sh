@@ -14,7 +14,7 @@ max_utterance_length=20000                #VAD最大截断长度，单位ms，�
 
 #可选资源：NgramLM， 提供fst_path具体路径，即可使用语言模型进行解码。
 lang_dir=../resource/ASR        #Ngram语言模型路径
-fst_path=$lang_dir/TLG.fst    #语言模型词图路径，默认名称都是TLG.fst，如果提供具体路径，则解码时会自动加载
+fst_path= #$lang_dir/TLG.fst    #语言模型词图路径，默认名称都是TLG.fst，如果提供具体路径，则解码时会自动加载
 dict_path=$lang_dir/words.txt  #语言模型词图对应词典的路径，默认名称为words.txt和TLG.fst放在同一个路径下
 
 #可选资源：热词列表，提供context_path，即可加载热词，并在解码中进行热词激励。

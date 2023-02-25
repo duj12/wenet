@@ -1,4 +1,5 @@
 // Copyright (c) 2021 Mobvoi Inc (Zhendong Peng)
+//               2023 dujing
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -66,14 +67,21 @@ bool CtcEndpoint::IsEndpoint(
   int utterance_length = num_frames_decoded_ * frame_shift_in_ms_;
   int trailing_silence = num_frames_trailing_blank_ * frame_shift_in_ms_;
   if (RuleActivated(config_.rule1, "rule1", decoded_something, trailing_silence,
-                    utterance_length))
+                    utterance_length)){
+    vad_state_ = VADState::kVadCutLongSilence;
     return true;
+  }
   if (RuleActivated(config_.rule2, "rule2", decoded_something, trailing_silence,
-                    utterance_length))
+                    utterance_length)){
+    vad_state_ = VADState::kVadCutTrailingSilence;
     return true;
+  }
   if (RuleActivated(config_.rule3, "rule3", decoded_something, trailing_silence,
-                    utterance_length))
+                    utterance_length)){
+    vad_state_ = VADState::kVadCutLongSpeech;
     return true;
+  }
+  vad_state_ = VADState::kVadNotActivated;  
   return false;
 }
 

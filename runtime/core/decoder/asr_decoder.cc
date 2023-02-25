@@ -121,7 +121,7 @@ DecodeState AsrDecoder::AdvanceDecoding(bool block) {
       state = DecodeState::kEndpoint;
     }
   }
-
+  this->vad_state_ = ctc_endpointer_->get_vad_state();
   start_ = true;
   return state;
 }

@@ -1,4 +1,5 @@
 // Copyright (c) 2021 Mobvoi Inc (Zhendong Peng)
+//               2023 dujing
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -67,11 +68,21 @@ class CtcEndpoint {
     frame_shift_in_ms_ = frame_shift_in_ms;
   }
 
+  enum VADState {
+    kVadNotActivated = 0,  //VAD is not activated, the audio is not cutted
+    kVadCutLongSilence = 1,  // when there is non sppech before silence and silence is longer than a value(5s), VAD will cut the audio
+    kVadCutTrailingSilence = 2, // when there is speech, and silence after the speech is longer than a value(1s), VAD will cut the audio
+    kVadCutLongSpeech = 3   // when there is long speech, and the length is longer than a value(20s), VAD will cut the audio 
+  };
+
+  const VADState get_vad_state() const { return vad_state_; }
+  
  private:
   CtcEndpointConfig config_;
   int frame_shift_in_ms_ = -1;
   int num_frames_decoded_ = 0;
   int num_frames_trailing_blank_ = 0;
+  VADState vad_state_ = kVadNotActivated;
 };
 
 }  // namespace wenet
