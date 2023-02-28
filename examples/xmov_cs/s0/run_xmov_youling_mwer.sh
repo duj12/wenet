@@ -4,7 +4,7 @@
 
 # Use this to control how many gpu you use, It's 1-gpu training if you specify
 # just 1gpu, otherwise it's is multiple gpu training based on DDP in pytorch
-export CUDA_VISIBLE_DEVICES="3"
+export CUDA_VISIBLE_DEVICES="1"
 stage=$1 # start from 0 if you need to start from data preparation
 stop_stage=$2
 num_gpus=$(echo $CUDA_VISIBLE_DEVICES | awk -F "," '{print NF}')
@@ -45,7 +45,7 @@ dict=data/dict_$en_modeling_unit/lang_char.txt
 cmvn=false   # do not use cmvn
 debug=false
 num_workers=2
-dir=exp/u2_xmov_youling4_distill
+dir=exp/u2_xmov_youling_mwer
 checkpoint=
 
 # use average_checkpoint will get better result
@@ -122,7 +122,7 @@ fi
 if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
   # Training
   mkdir -p $dir
-  checkpoint=$dir/46.pt   #继续通用领域模型训练
+  checkpoint=exp/conformer_wavaug/44.pt   #继续通用领域模型训练
   INIT_FILE=$dir/ddp_init
   # You had better rm it manually before you start run.sh on first node.
   # rm -f $INIT_FILE # delete old one before starting
@@ -166,9 +166,7 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
       $cmvn_opts \
       --pin_memory \
       --bpe_model ${bpecode} \
-      --teacher_config  exp/conformer_wavaug/train.yaml \
-      --teacher_checkpoint exp/conformer_wavaug/44.pt \
-      --teacher_distill_weight 0.5
+      --mwer_weight 0.5
   } &
   done
   wait
@@ -192,7 +190,7 @@ if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
   ctc_weight=0.5
   idx=0
   reverse_weight=0.0
-  nnlm_file=data/lm_transformer/valid.loss.ave_10best.pth
+  nnlm_file= #data/lm_transformer/valid.loss.ave_10best.pth
   lm_firstpass_weight=0.3
   lm_secondpass_weight=0.5
   if [ ! -z $nnlm_file ] ; then
@@ -205,7 +203,7 @@ if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
   nj=1
   CUDA_VISIBLE_DEVICES=""
   num_gpus=$(echo $CUDA_VISIBLE_DEVICES | awk -F "," '{print NF}')
-  test_sets="debug "
+  test_sets="test_xmov_inter "
   for test in ${test_sets}; do
 
   for mode in ${decode_modes}; do
@@ -317,15 +315,15 @@ if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
     tools/fst/make_tlg.sh data/local/lm data/local/lang data/lang_test || exit 1;
   fi
   # 7.4 Decoding with runtime
-  test_sets="test_aishell test_net test_meeting test_conv test_libriclean  test_giga test_talcs test_htrs462 test_sjtcs test_xmov test_xmov_inter"
-  test_sets="test_xmov_inter test_conv "
+  test_sets="test_aishell test_net test_meeting test_libriclean  test_giga test_talcs test_htrs462 test_sjtcs test_conv test_xmov test_xmov_inter"
+  #test_sets="test_xmov_inter "
 
   model_suffix= #"_quant"
-  CUDA_VISIBLE_DEVICES="3"
+  CUDA_VISIBLE_DEVICES="0"
   num_gpus=$(echo $CUDA_VISIBLE_DEVICES | awk -F "," '{print NF}')
   thread_num=1
   warmup=1
-  nj=16  #$num_gpus
+  nj=16 #$num_gpus
   if [ ! -z $CUDA_VISIBLE_DEVICES ]; then
     decode_opts="--gpu_devices $CUDA_VISIBLE_DEVICES "$decode_opts
   else

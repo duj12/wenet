@@ -123,7 +123,9 @@ def get_args():
 
     parser.add_argument('--teacher_config', required=False, help='teacher config file')
     parser.add_argument('--teacher_checkpoint', help='teacher checkpoint model')
-    parser.add_argument('--teacher_distill_weight', default=0.2, type=float, help='distill loss weight')
+    parser.add_argument('--teacher_distill_weight', default=0.0, type=float, help='distill loss weight')
+
+    parser.add_argument('--mwer_weight', default=0.0, type=float, help='minimize word error rate loss weight')
 
     args = parser.parse_args()
     return args
@@ -218,6 +220,8 @@ def main():
         load_checkpoint(teacher_model, args.teacher_checkpoint)
         logging.info('load teacher model: {}'.format(args.teacher_checkpoint))
         teacher_model.eval()
+
+    configs['mwer_weight'] = args.mwer_weight if hasattr(args, 'mwer_weight') else 0
 
     # !!!IMPORTANT!!!
     # Try to export the model by script, if fails, we should refine

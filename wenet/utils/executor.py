@@ -20,6 +20,8 @@ from contextlib import nullcontext
 import torch, os
 from torch.nn.utils import clip_grad_norm_
 from wenet.utils.checkpoint import save_checkpoint
+from wenet.utils.ctc_kd_loss import CTCKDLoss
+from wenet.utils.mwer import CTCMWERLoss
 
 class Executor:
 
@@ -78,17 +80,41 @@ class Executor:
                     # https://pytorch.org/docs/stable/notes/amp_examples.html
                     with torch.cuda.amp.autocast(scaler is not None):
                         loss_dict = model(feats, feats_lengths, target, target_lengths)
-                        loss = loss_dict['loss'] / accum_grad
                         # get distillation loss
                         if not teacher_model is None:
-                            encoder_out = loss_dict['encoder_out']
-                            teacher_encoder_out, _ = teacher_model.encoder(feats, feats_lengths)
+                            encoder_out, encoder_out_lens = loss_dict['encoder_out'], loss_dict['encoder_out_lens']
+                            t_encoder_out, t_encoder_out_mask = teacher_model.encoder(feats, feats_lengths)
+
+                            # # distill the encoder_out directly
                             distill_loss = torch.nn.functional.kl_div(encoder_out.softmax(dim=-1).log(),
-                                                                        teacher_encoder_out.softmax(dim=-1),
+                                                                        t_encoder_out.softmax(dim=-1),
                                                                         reduction='batchmean')
+
+                            t_encoder_out_lens = t_encoder_out_mask.squeeze(1).sum(1)
+                            s_logits = model.ctc.log_softmax(encoder_out)
+                            t_logits = teacher_model.ctc.log_softmax(t_encoder_out)
+                            # # distill CTC logits with the teacher's decoding result.
+                            # distill_loss = CTCKDLoss(nbest=2).forward(s_logits=s_logits, s_logits_length=encoder_out_lens,
+                            #             t_logits=t_logits, t_logits_length=t_encoder_out_lens)
+
                             loss_dict['loss_distill'] = distill_loss
                             teacher_distill_weight = args.get('teacher_distill_weight', 0)
-                            loss = (1 - teacher_distill_weight) * loss + teacher_distill_weight * distill_loss
+                            total_loss = (1 - teacher_distill_weight) * loss_dict['loss'] + teacher_distill_weight * distill_loss
+                            loss_dict['loss'] = total_loss
+
+                        # get mwer loss
+                        mwer_weight = args.get('mwer_weight', 0)
+                        if mwer_weight > 0:
+                            encoder_out, encoder_out_lens = loss_dict['encoder_out'], loss_dict['encoder_out_lens']
+                            logits = model.ctc.log_softmax(encoder_out)
+                            mwer_loss = CTCMWERLoss(beam_width=4).forward(logits=logits, logit_length=encoder_out_lens,
+                                            labels=target, label_length=target_lengths)
+                            loss_dict['loss_mwer'] = mwer_loss
+                            total_loss = (1 - mwer_weight) * loss_dict['loss'] + mwer_weight * mwer_loss
+                            loss_dict['loss'] = total_loss
+
+                        # gradient accumulate
+                        loss = loss_dict['loss'] / accum_grad
                     if use_amp:
                         scaler.scale(loss).backward()
                     else:

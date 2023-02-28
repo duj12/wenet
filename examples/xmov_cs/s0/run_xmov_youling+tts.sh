@@ -4,7 +4,7 @@
 
 # Use this to control how many gpu you use, It's 1-gpu training if you specify
 # just 1gpu, otherwise it's is multiple gpu training based on DDP in pytorch
-export CUDA_VISIBLE_DEVICES="3"
+export CUDA_VISIBLE_DEVICES="2"
 stage=$1 # start from 0 if you need to start from data preparation
 stop_stage=$2
 num_gpus=$(echo $CUDA_VISIBLE_DEVICES | awk -F "," '{print NF}')
@@ -45,11 +45,11 @@ dict=data/dict_$en_modeling_unit/lang_char.txt
 cmvn=false   # do not use cmvn
 debug=false
 num_workers=2
-dir=exp/u2_xmov_youling2
+dir=exp/u2_xmov_youling_distill_ctc
 checkpoint=
 
 # use average_checkpoint will get better result
-average_num=10
+average_num=5
 average_checkpoint=false
 decode_checkpoint=$dir/avg_${average_num}.pt
 #decode_modes="ctc_greedy_search ctc_prefix_beam_search
@@ -122,7 +122,7 @@ fi
 if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
   # Training
   mkdir -p $dir
-  checkpoint=exp/conformer_wavaug/steps_360000.pt   #继续通用领域模型训练
+  checkpoint=exp/conformer_wavaug/44.pt   #继续通用领域模型训练
   INIT_FILE=$dir/ddp_init
   # You had better rm it manually before you start run.sh on first node.
   # rm -f $INIT_FILE # delete old one before starting
@@ -165,7 +165,10 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
       --num_workers 1 \
       $cmvn_opts \
       --pin_memory \
-      --bpe_model ${bpecode}
+      --bpe_model ${bpecode} \
+      --teacher_config  exp/conformer_wavaug/train.yaml \
+      --teacher_checkpoint exp/conformer_wavaug/44.pt \
+      --teacher_distill_weight 0.5
   } &
   done
   wait
@@ -314,11 +317,11 @@ if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
     tools/fst/make_tlg.sh data/local/lm data/local/lang data/lang_test || exit 1;
   fi
   # 7.4 Decoding with runtime
-  test_sets="test_aishell test_net test_meeting test_libriclean  test_giga test_talcs test_htrs462 test_sjtcs test_conv test_xmov test_xmov_inter"
-  test_sets="test_xmov_inter "
+  test_sets="test_aishell test_net test_meeting test_conv test_libriclean  test_giga test_talcs test_htrs462 test_sjtcs test_xmov test_xmov_inter"
+  test_sets="test_xmov_inter test_conv "
 
   model_suffix= #"_quant"
-  CUDA_VISIBLE_DEVICES="3"
+  CUDA_VISIBLE_DEVICES="2"
   num_gpus=$(echo $CUDA_VISIBLE_DEVICES | awk -F "," '{print NF}')
   thread_num=1
   warmup=1
@@ -328,10 +331,10 @@ if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
   else
     decode_opts=""$decode_opts
   fi
-  use_lm=1
+  use_lm=0
   length_penalty=-4.0
   lm=lm_250G_4gram+YouLing_6gram_chars
-  context_path="data/hot_words.txt"
+  context_path= #"data/hot_words.txt"
   if [ ! -z $context_path ]; then
     decode_suffix="_with_context"
     decode_opts="--context_path $context_path --context_score 3 "$decode_opts
