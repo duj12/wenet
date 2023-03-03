@@ -3,14 +3,17 @@ import wave
 from wenetruntime.decoder import ASRModel, Decoder
 
 
-def process_one_thread(model, wav_file,
+def process_one_thread(t_number,
+                       model, wav_file,
+                       common_context_list,
                        user_context_list,
                        vad_silence_len=1000):
     """
 
     :param model: 初始化之后的ASR_Model, 包含了模型等公有资源
     :param wav_file: 需要解码的音频
-    :param user_context_list: 用户输入热词列表(包含了公有热词)
+    :param common_context_list: 公共热词列表
+    :param user_context_list: 用户输入热词列表
     :param vad_silence_len: VAD拖尾静音参数，单位ms
     :return:
     """
@@ -27,19 +30,35 @@ def process_one_thread(model, wav_file,
         关于其他decoder的可设置参数，见py/decoder.py
         '''
 
+    # 当前也支持在线程内部创建ASRModel,但是没必要这么做
+    # model = ASRModel("../../resource/ASR")
+    print(f"Thread {t_number}： 创建Decoder，加载公有热词")
     decoder = Decoder(model,
-                      context=user_context_list,
+                      context=common_context_list,
                       continuous_decoding=True,
                       vad_trailing_silence=vad_silence_len,
                       nbest=1,
                       enable_timestamp=False
                       )
 
+    print(f"Thread {t_number}： 加载私有热词")
+    # 此时decoder已经加载了common_context_list, 如果需要设置用户自定义list，reset一下。
+    decoder.reset_user_context(user_context_list)
+
+    print(f"Thread {t_number}： 设定VAD静音参数")
+    # Decoder已经设定好vad_silence_length, 但是如果有新用户要更改，直接再set一下。
+    decoder.set_vad_trailing_silence(vad_silence_len)
+
+    print(f"Thread {t_number}： 初始化解码器")
+    # Decoder设定完毕，需要再初始化一下。
+    decoder.init_decoder()
+
     # In demo we read wave in non-streaming fashion.
     with wave.open(wav_file, 'rb') as fin:
         assert fin.getnchannels() == 1
         wav = fin.readframes(fin.getnframes())
 
+    print(f"Thread {t_number}： 开始解码...")
     # We suppose the wav is 16k, 16bits, and decode every 0.5 seconds
     interval = int(0.5 * 16000) * 2
     for i in range(0, len(wav), interval):
@@ -48,6 +67,7 @@ def process_one_thread(model, wav_file,
         ans = decoder.decode(chunk_wav, last)
         print(ans)
 
+    print(f"Thread {t_number}： 解码结束")
 
 if __name__ == "__main__":
 
@@ -64,10 +84,14 @@ if __name__ == "__main__":
             common_context_list.append(word)
 
     #初始化模型
-    model = ASRModel("../../resource/ASR")
+    model = None
+    print("创建模型，为多个线程公有内存")
+    model = ASRModel("../../resource/ASR_General")
+    print("创建模型，模型加载已完毕")
 
     import threading
     t_count = 2
+    case_count = 2
     wav_files = ["../../resource/WAV/test_xmov_youling/asrtest_axiong_0001.wav",
                  "../../resource/WAV/test_xmov_youling/asrtest_axiong_0002.wav"]
     user_context_lists = [["小黄车", "抓紧上车", "三二一上链接", "公募五零"], ["公墓武林"]]
@@ -80,13 +104,16 @@ if __name__ == "__main__":
     threads = []
     for i in range(t_count):
         t = threading.Thread(target=process_one_thread,
-                             args=(model, wav_files[i], user_context_lists[i]+common_context_list, vad_silences[i]))
+                             args=(i, model, wav_files[i%case_count],
+                                   common_context_list,
+                                   user_context_lists[i%case_count],
+                                   vad_silences[i%case_count]))
         threads.append(t)
 
     for i in range(t_count):
         threads[i].start()
         """
-        如果多个线程共享同一个Decoder对象(包含线程不安全的成员)，那么必须加锁，否则各个线程的解码结果可能混在一起。
+        如果多个线程共享同一个Decoder对象(包含线程不安全的成员)，那么必须加锁。
         将Model和Decoder分开，Decoder为每个线程私有，那么不需要加锁就可以实现多个线程同时流式识别。
         """
         #threads[i].join()

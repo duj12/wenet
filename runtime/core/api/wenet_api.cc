@@ -29,6 +29,7 @@
 
 class ASRModel{
  public:
+  bool use_lm_symbols = false;
   explicit ASRModel(const std::string& model_dir) {
     // Resource init
     resource_ = std::make_shared<wenet::DecodeResource>();
@@ -55,8 +56,10 @@ class ASRModel{
       CHECK(wenet::FileExists(symbol_path));
       resource_->symbol_table = std::shared_ptr<fst::SymbolTable>(
           fst::SymbolTable::ReadText(symbol_path));
+      use_lm_symbols = true;
     } else {  // Without LM, symbol_table is the same as unit_table
       resource_->symbol_table = resource_->unit_table;
+      use_lm_symbols = false;
     }
   }
   std::shared_ptr<wenet::DecodeResource> get_resource(){return resource_;}
@@ -223,14 +226,12 @@ class Recognizer {
   void set_vad_trailing_silence(const int length_in_ms) {
     decode_options_->ctc_endpoint_config.rule2.min_trailing_silence = length_in_ms;
   }
-  void set_resource(void* resource){
-    wenet::DecodeResource* resource1 = reinterpret_cast<wenet::DecodeResource*>(resource);
-    std::shared_ptr<wenet::DecodeResource> resource2 = std::shared_ptr<wenet::DecodeResource>(resource1);
-    resource_ = resource2;
-  }
+
   void set_resource(std::shared_ptr<wenet::DecodeResource> resource){
     resource_ = resource;
   }
+  
+  bool use_lm_symbols_ = false;
 
  private:
   // NOTE(Binbin Zhang): All use shared_ptr for clone in the future
@@ -250,7 +251,6 @@ class Recognizer {
   float context_score_;
   std::string language_ = "chs";
   bool continuous_decoding_ = false;
-  bool use_lm_symbols_ = false;
 };
 
 void* wenet_init_resource(const char* model_dir){
@@ -272,6 +272,7 @@ void wenet_set_decoder_resource(void* decoder, void *model){
   ASRModel* asr_model = reinterpret_cast<ASRModel*>(model);
   std::shared_ptr<wenet::DecodeResource> resource = asr_model->get_resource();
   recognizer->set_resource(resource);
+  recognizer->use_lm_symbols_ = asr_model->use_lm_symbols;
 }
 
 void wenet_free(void* decoder) {
