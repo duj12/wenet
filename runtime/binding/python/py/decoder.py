@@ -17,13 +17,20 @@ from typing import List, Optional
 
 import _wenet
 
-from .hub import Hub
+class ASRModel:
+    def __init__(self, model_dir: str):
+        """
+        :param model_dir: 模型资源的路径，必须包含final.zip和units.txt，可选包含TLG.fst,words.txt,hot_words.txt
+        """
+        self.model = _wenet.wenet_init_resource(model_dir)
 
+    def __del__(self):
+        _wenet.wenet_free_resource(self.model)
 
 class Decoder:
 
     def __init__(self,
-                 model_dir: Optional[str] = None,
+                 resource: ASRModel,
                  lang: str = 'chs',
                  nbest: int = 1,
                  enable_timestamp: bool = False,
@@ -33,6 +40,7 @@ class Decoder:
                  vad_trailing_silence: int = 1000, ):
         """ Init WeNet decoder
         Args:
+            model: The ASR model resources
             lang: language type of the model
             nbest: nbest number for the final result
             enable_timestamp: whether to enable word level timestamp
@@ -43,11 +51,9 @@ class Decoder:
             vad_trailing_silence: the silence length in ms.
                 If the silence is longer than this, the audio will be cutted.
         """
-        if model_dir is None:
-            model_dir = Hub.get_model_by_lang(lang)
+        self.d = _wenet.wenet_init()
 
-        self.d = _wenet.wenet_init(model_dir)
-
+        self.load_resource(resource.model)
         self.set_language(lang)
         self.set_nbest(nbest)
         self.enable_timestamp(enable_timestamp)
@@ -60,9 +66,16 @@ class Decoder:
     def __del__(self):
         _wenet.wenet_free(self.d)
 
+    def load_resource(self, model):
+        _wenet.wenet_set_decoder_resource(self.d, model)
+
     def reset(self):
         """ Reset status for next decoding """
         _wenet.wenet_reset(self.d)
+
+    def init_decoder(self):
+        """Init the user specific decoder"""
+        _wenet.wenet_init_decoder(self.d)
 
     def set_nbest(self, n: int):
         assert n >= 1
@@ -74,12 +87,20 @@ class Decoder:
         _wenet.wenet_set_timestamp(self.d, tag)
 
     def add_context(self, contexts: List[str]):
+        """add common hotwords"""
         for c in contexts:
             assert isinstance(c, str)
             _wenet.wenet_add_context(self.d, c)
 
     def set_context_score(self, score: float):
         _wenet.wenet_set_context_score(self.d, score)
+
+    def reset_user_context(self, user_contexts: List[str]):
+        """reset the customized hotwords"""
+        _wenet.wenet_clear_user_context(self.d)
+        for c in user_contexts:
+            assert isinstance(c, str)
+            _wenet.wenet_add_user_context(self.d, c)
 
     def set_language(self, lang: str):
         assert lang in ['chs', 'en']

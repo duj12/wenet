@@ -20,12 +20,21 @@
 extern "C" {
 #endif
 
+// Init Model
+void* wenet_init_resource(const char* model_dir);
+
+// free Model
+void wenet_free_resource(void* model);
+
 /** Init decoder from the file and returns the object
  *
  * @param model_dir: the model dir
  * @returns model object or NULL if problem occured
  */
-void* wenet_init(const char* model_dir);
+void* wenet_init();
+
+// load model to decoder
+void wenet_set_decoder_resource(void* decoder, void* model);
 
 /** Free wenet decoder and corresponding resource
  */
@@ -34,6 +43,10 @@ void wenet_free(void* decoder);
 /** Reset decoder for next decoding
  */
 void wenet_reset(void* decoder);
+
+/** init decoder
+ */
+void wenet_init_decoder(void* decoder);
 
 /** Decode the input wav data
  * @param data: pcm data, encoded as int16_t(16 bits)
@@ -89,6 +102,15 @@ void wenet_add_context(void* decoder, const char* word);
 /** Set contextual biasing bonus score
  */
 void wenet_set_context_score(void* decoder, float score);
+
+/** Add one contextual biasing for specific user
+ */
+void wenet_add_user_context(void* decoder, const char* word);
+
+/** Clear user's context list.
+ */
+void wenet_clear_user_context(void* decoder);
+
 
 /** Set language, has effect on the postpocessing
  *  @param: lang, could be chs/en now

@@ -2,14 +2,15 @@
 
 ## 安装方法
 
-    由于这个版本是不同于WeNet官方的版本，内部很多代码做过更改，因此不能直接使用官方的编译方法。
+    由于这个版本是不同于WeNet官方的版本，内部很多代码做过更改，因此不能直接使用官方的包。
 
     需要在本地克隆此代码仓库，然后运行
     cd asr-online/binding/python
     python setup.py install  
     
-    默认的setup.py里面打开了GPU选项，如过只使用CPU，则需要将-DGPU=ON删除。
-    推荐使用torch==1.11.0+cu113, python==3.7或3.8均可, 经过测试此环境能正常运行。
+    默认的setup.py使用CPU编译，如需编译GPU版本，则需要在cmake编译选项中添加"-DGPU=ON"。
+    如果遇到torch安装失败的问题，可以考虑切换源，或者提前安装上torch，再运行setup.py安装
+    推荐使用torch==1.11.0(或1.11.0+cu113), python==3.7或3.8, 经过测试此环境能正常运行。
     
 ## 接口修改与绑定
     
@@ -31,13 +32,6 @@ The best things of the binding are:
 3. N-best, contextual biasing, and timestamp supports, which are very important for speech productions.
 4. Alignment support. You can get phone level alignments this tool, on developing.
 
-## Install
-
-Python 3.6+ is required.
-
-``` sh
-pip3 install wenetruntime
-```
 
 ## Usage
 
@@ -113,13 +107,4 @@ for i in range(0, len(wav), interval):
 ```
 
 You can use the same parameters as we introduced above to control the behavior of `wenet.Decoder`
-
-
-## Build on Your Local Machine
-
-``` sh
-git clone https://github.com/wenet-e2e/wenet.git
-cd wenet/runtime/binding/python
-python setup.py install
-```
 

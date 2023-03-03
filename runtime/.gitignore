@@ -4,3 +4,7 @@
 resource
 */build
 */fc_base
+binding/python/.eggs/
+binding/python/build/
+binding/python/wenetruntime.egg-info/dependency_links.txt
+binding/python/wenetruntime.egg-info/

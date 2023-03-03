@@ -85,17 +85,17 @@ class Executor:
                             encoder_out, encoder_out_lens = loss_dict['encoder_out'], loss_dict['encoder_out_lens']
                             t_encoder_out, t_encoder_out_mask = teacher_model.encoder(feats, feats_lengths)
 
-                            # # distill the encoder_out directly
-                            distill_loss = torch.nn.functional.kl_div(encoder_out.softmax(dim=-1).log(),
-                                                                        t_encoder_out.softmax(dim=-1),
-                                                                        reduction='batchmean')
+                            # # # distill the encoder_out directly, doesn't work
+                            # distill_loss = torch.nn.functional.kl_div(encoder_out.softmax(dim=-1).log(),
+                            #                                             t_encoder_out.softmax(dim=-1),
+                            #                                             reduction='batchmean')
 
                             t_encoder_out_lens = t_encoder_out_mask.squeeze(1).sum(1)
                             s_logits = model.ctc.log_softmax(encoder_out)
                             t_logits = teacher_model.ctc.log_softmax(t_encoder_out)
                             # # distill CTC logits with the teacher's decoding result.
-                            # distill_loss = CTCKDLoss(nbest=2).forward(s_logits=s_logits, s_logits_length=encoder_out_lens,
-                            #             t_logits=t_logits, t_logits_length=t_encoder_out_lens)
+                            distill_loss = CTCKDLoss(nbest=1).forward(s_logits=s_logits, s_logits_length=encoder_out_lens,
+                                        t_logits=t_logits, t_logits_length=t_encoder_out_lens)
 
                             loss_dict['loss_distill'] = distill_loss
                             teacher_distill_weight = args.get('teacher_distill_weight', 0)

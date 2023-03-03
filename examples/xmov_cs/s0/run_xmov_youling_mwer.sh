@@ -315,8 +315,8 @@ if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
     tools/fst/make_tlg.sh data/local/lm data/local/lang data/lang_test || exit 1;
   fi
   # 7.4 Decoding with runtime
-  test_sets="test_aishell test_net test_meeting test_libriclean  test_giga test_talcs test_htrs462 test_sjtcs test_conv test_xmov test_xmov_inter"
-  #test_sets="test_xmov_inter "
+  test_sets="test_aishell test_net test_meeting test_conv test_libriclean  test_giga test_talcs test_htrs462 test_sjtcs test_xmov test_xmov_inter"
+  test_sets="test_xmov_inter test_conv "
 
   model_suffix= #"_quant"
   CUDA_VISIBLE_DEVICES="0"

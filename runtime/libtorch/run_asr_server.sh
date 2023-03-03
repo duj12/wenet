@@ -28,7 +28,7 @@ lattice_beam=7.5
 min_active=200
 max_active=7000
 blank_skip_thresh=0.98
-length_penalty=-4.0
+length_penalty=-3.0
 wfst_decode_opts=
 if [ ! -z $fst_path ]; then
   wfst_decode_opts="--fst_path $fst_path"
@@ -53,6 +53,7 @@ CUDA_VISIBLE_DEVICES="6" ./build/bin/websocket_server_main \
     --frame_shift 100 \
     --chunk_size 16 ${wfst_decode_opts} ${decode_opts} \
     --ctc_weight 0.5 --rescoring_weight 1.0 \
+    --reverse_weight 0.3 \
     --min_trailing_silence $min_trailing_silence  \
     --max_utterance_length $max_utterance_length  \
     --model_path $model_dir/final.zip \

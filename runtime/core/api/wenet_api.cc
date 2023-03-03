@@ -26,13 +26,10 @@
 #include "utils/json.h"
 #include "utils/string.h"
 
-class Recognizer {
+
+class ASRModel{
  public:
-  explicit Recognizer(const std::string& model_dir) {
-    // FeaturePipeline init
-    feature_config_ = std::make_shared<wenet::FeaturePipelineConfig>(80, 16000);
-    feature_pipeline_ =
-        std::make_shared<wenet::FeaturePipeline>(*feature_config_);
+  explicit ASRModel(const std::string& model_dir) {
     // Resource init
     resource_ = std::make_shared<wenet::DecodeResource>();
     wenet::TorchAsrModel::InitEngineThreads();
@@ -58,15 +55,60 @@ class Recognizer {
       CHECK(wenet::FileExists(symbol_path));
       resource_->symbol_table = std::shared_ptr<fst::SymbolTable>(
           fst::SymbolTable::ReadText(symbol_path));
-      use_lm_symbols_ = true;
     } else {  // Without LM, symbol_table is the same as unit_table
       resource_->symbol_table = resource_->unit_table;
-      use_lm_symbols_ = false;
     }
+  }
+  std::shared_ptr<wenet::DecodeResource> get_resource(){return resource_;}
+
+ private:
+  std::shared_ptr<wenet::DecodeResource> resource_ = nullptr;
+};
+
+
+class Recognizer {
+ public:
+  explicit Recognizer() {
+    // FeaturePipeline init
+    // Here we use frame_length=400 and frame_shift=100
+    feature_config_ = std::make_shared<wenet::FeaturePipelineConfig>(80, 16000, 400, 100);
+    feature_pipeline_ =
+        std::make_shared<wenet::FeaturePipeline>(*feature_config_);
+//    // Resource init
+//    resource_ = std::make_shared<wenet::DecodeResource>();
+//    wenet::TorchAsrModel::InitEngineThreads();
+//    std::string model_path = wenet::JoinPath(model_dir, "final.zip");
+//    CHECK(wenet::FileExists(model_path));
+//
+//    auto model = std::make_shared<wenet::TorchAsrModel>();
+//    model->Read(model_path);
+//    resource_->model = model;
+//
+//    // units.txt: E2E model unit
+//    std::string unit_path = wenet::JoinPath(model_dir, "units.txt");
+//    CHECK(wenet::FileExists(unit_path));
+//    resource_->unit_table = std::shared_ptr<fst::SymbolTable>(
+//      fst::SymbolTable::ReadText(unit_path));
+//
+//    std::string fst_path = wenet::JoinPath(model_dir, "TLG.fst");
+//    if (wenet::FileExists(fst_path)) {  // With LM
+//      resource_->fst = std::shared_ptr<fst::Fst<fst::StdArc>>(
+//          fst::Fst<fst::StdArc>::Read(fst_path));
+//
+//      std::string symbol_path = wenet::JoinPath(model_dir, "words.txt");
+//      CHECK(wenet::FileExists(symbol_path));
+//      resource_->symbol_table = std::shared_ptr<fst::SymbolTable>(
+//          fst::SymbolTable::ReadText(symbol_path));
+//      use_lm_symbols_ = true;
+//    } else {  // Without LM, symbol_table is the same as unit_table
+//      resource_->symbol_table = resource_->unit_table;
+//      use_lm_symbols_ = false;
+//    }
 
     // Context config init
     context_config_ = std::make_shared<wenet::ContextConfig>();
     decode_options_ = std::make_shared<wenet::DecodeOptions>();
+    decode_options_->ctc_wfst_search_opts.length_penalty = -3.0;  // -3.0 is proper
     post_process_opts_ = std::make_shared<wenet::PostProcessOptions>();
   }
 
@@ -83,11 +125,16 @@ class Recognizer {
   void InitDecoder() {
     CHECK(decoder_ == nullptr);
     // Optional init context graph
-    if (context_.size() > 0) {
+    if (context_.size() > 0 || user_context_.size() > 0) {
+      if (context_.size()>0){
+        for (int i=0; i<context_.size(); i++){
+          user_context_.emplace_back(context_[i]);
+        }
+      }
       context_config_->context_score = context_score_;
       auto context_graph =
           std::make_shared<wenet::ContextGraph>(*context_config_);
-      context_graph->BuildContextGraph(context_, resource_->symbol_table, use_lm_symbols_);
+      context_graph->BuildContextGraph(user_context_, resource_->symbol_table, use_lm_symbols_);
       resource_->context_graph = context_graph;
     }
     // PostProcessor
@@ -143,7 +190,9 @@ class Recognizer {
     for (int i = 0; i < nbest && i < decoder_->result().size(); i++) {
       json::JSON one;
       one["sentence"] = decoder_->result()[i].sentence;
-      if (final_result && enable_timestamp_) {
+      //if (final_result && enable_timestamp_) {
+      // Here we need timestamp in partial_result
+      if (enable_timestamp_) {
         one["word_pieces"] = json::Array();
         for (const auto& word_piece : decoder_->result()[i].word_pieces) {
           json::JSON piece;
@@ -165,12 +214,22 @@ class Recognizer {
   void set_nbest(int n) { nbest_ = n; }
   void set_enable_timestamp(bool flag) { enable_timestamp_ = flag; }
   void AddContext(const char* word) { context_.emplace_back(word); }
+  void add_user_context(const char* word) {user_context_.emplace_back(word); }
+  void clear_user_context() {user_context_.clear();}
   void set_context_score(float score) { context_score_ = score; }
   void set_language(const char* lang) { language_ = lang; }
   void set_continuous_decoding(bool flag) { continuous_decoding_ = flag; }
   //Give access to VAD trailing silence length
   void set_vad_trailing_silence(const int length_in_ms) {
     decode_options_->ctc_endpoint_config.rule2.min_trailing_silence = length_in_ms;
+  }
+  void set_resource(void* resource){
+    wenet::DecodeResource* resource1 = reinterpret_cast<wenet::DecodeResource*>(resource);
+    std::shared_ptr<wenet::DecodeResource> resource2 = std::shared_ptr<wenet::DecodeResource>(resource1);
+    resource_ = resource2;
+  }
+  void set_resource(std::shared_ptr<wenet::DecodeResource> resource){
+    resource_ = resource;
   }
 
  private:
@@ -187,15 +246,32 @@ class Recognizer {
   std::string result_;
   bool enable_timestamp_ = false;
   std::vector<std::string> context_;
+  std::vector<std::string> user_context_;  // the context list for specific user
   float context_score_;
   std::string language_ = "chs";
   bool continuous_decoding_ = false;
   bool use_lm_symbols_ = false;
 };
 
-void* wenet_init(const char* model_dir) {
-  Recognizer* decoder = new Recognizer(model_dir);
+void* wenet_init_resource(const char* model_dir){
+  ASRModel* model = new ASRModel(model_dir);
+  return reinterpret_cast<void*>(model);
+}
+
+void wenet_free_resource(void* model) {
+  delete reinterpret_cast<ASRModel*>(model);
+}
+
+void* wenet_init() {
+  Recognizer* decoder = new Recognizer();
   return reinterpret_cast<void*>(decoder);
+}
+
+void wenet_set_decoder_resource(void* decoder, void *model){
+  Recognizer* recognizer = reinterpret_cast<Recognizer*>(decoder);
+  ASRModel* asr_model = reinterpret_cast<ASRModel*>(model);
+  std::shared_ptr<wenet::DecodeResource> resource = asr_model->get_resource();
+  recognizer->set_resource(resource);
 }
 
 void wenet_free(void* decoder) {
@@ -205,6 +281,11 @@ void wenet_free(void* decoder) {
 void wenet_reset(void* decoder) {
   Recognizer* recognizer = reinterpret_cast<Recognizer*>(decoder);
   recognizer->Reset();
+}
+
+void wenet_init_decoder(void* decoder) {
+  Recognizer* recognizer = reinterpret_cast<Recognizer*>(decoder);
+  recognizer->InitDecoder();
 }
 
 void wenet_decode(void* decoder, const char* data, int len, int last) {
@@ -241,6 +322,15 @@ void wenet_add_context(void* decoder, const char* word) {
 void wenet_set_context_score(void* decoder, float score) {
   Recognizer* recognizer = reinterpret_cast<Recognizer*>(decoder);
   recognizer->set_context_score(score);
+}
+
+void wenet_add_user_context(void* decoder, const char* word) {
+  Recognizer* recognizer = reinterpret_cast<Recognizer*>(decoder);
+  recognizer->add_user_context(word);
+}
+void wenet_clear_user_context(void* decoder) {
+  Recognizer* recognizer = reinterpret_cast<Recognizer*>(decoder);
+  recognizer->clear_user_context();
 }
 
 void wenet_set_language(void* decoder, const char* lang) {
