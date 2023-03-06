@@ -52,7 +52,7 @@ class Decoder:
                 If the silence is longer than this, the audio will be cutted.
         """
         self.d = _wenet.wenet_init()
-
+        _wenet.wenet_set_log_level(0)  # set the log level
         self.load_resource(resource.model)
         self.set_language(lang)
         self.set_nbest(nbest)

@@ -129,15 +129,21 @@ class Recognizer {
     CHECK(decoder_ == nullptr);
     // Optional init context graph
     if (context_.size() > 0 || user_context_.size() > 0) {
+      std::vector<std::string> context; 
       if (context_.size()>0){
         for (int i=0; i<context_.size(); i++){
-          user_context_.emplace_back(context_[i]);
+          context.emplace_back(context_[i]);
+        }
+      }
+      if (user_context_.size()>0){
+        for (int i=0; i<user_context_.size(); i++){
+          context.emplace_back(user_context_[i]);
         }
       }
       context_config_->context_score = context_score_;
       auto context_graph =
           std::make_shared<wenet::ContextGraph>(*context_config_);
-      context_graph->BuildContextGraph(user_context_, resource_->symbol_table, use_lm_symbols_);
+      context_graph->BuildContextGraph(context, resource_->symbol_table, use_lm_symbols_);
       resource_->context_graph = context_graph;
     }
     // PostProcessor
@@ -179,6 +185,7 @@ class Recognizer {
         decoder_->Rescoring();
         UpdateResult(true);
         decoder_->ResetContinuousDecoding();
+        break;  //dujing: We should break decoding if we detect VAD's EndPoint 
       } else {  // kEndBatch
         UpdateResult(false);
       }

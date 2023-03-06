@@ -8,9 +8,9 @@
     cd asr-online/binding/python
     python setup.py install  
     
-    默认的setup.py使用CPU编译，如需编译GPU版本，则需要在cmake编译选项中添加"-DGPU=ON"。
+    默认的setup.py使用GPU编译，如需编译CPU版本，则需要在cmake编译选项中删除"-DGPU=ON"。
     如果遇到torch安装失败的问题，可以考虑切换源，或者提前安装上torch，再运行setup.py安装
-    推荐使用torch==1.11.0(或1.11.0+cu113), python==3.7或3.8, 经过测试此环境能正常运行。
+    安装过程中需要确保编译过程使用的libtorch和pytorch版本保持一致。
     
 ## 接口修改与绑定
     

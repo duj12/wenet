@@ -314,7 +314,7 @@ if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
     tools/fst/make_tlg.sh data/local/lm data/local/lang data/lang_test || exit 1;
   fi
   # 7.4 Decoding with runtime
-  test_sets="test_aishell test_net test_meeting test_libriclean  test_giga test_talcs test_htrs462 test_sjtcs test_conv test_xmov test_xmov_inter"
+  test_sets="test_aishell test_net test_meeting test_conv test_libriclean  test_giga test_talcs test_htrs462 test_sjtcs test_xmov test_xmov_inter"
   #test_sets="test_youguang "
 
   model_suffix= #"_quant"
@@ -322,14 +322,14 @@ if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
   num_gpus=$(echo $CUDA_VISIBLE_DEVICES | awk -F "," '{print NF}')
   thread_num=1
   warmup=1
-  nj=16 #$num_gpus
+  nj=8 #$num_gpus
   if [ ! -z $CUDA_VISIBLE_DEVICES ]; then
     decode_opts="--gpu_devices $CUDA_VISIBLE_DEVICES "$decode_opts
   else
     decode_opts=""$decode_opts
   fi
-  use_lm=0
-  length_penalty=-4.0
+  use_lm=1
+  length_penalty=-3.0
   lm=lm_250G_4gram+asrtext_6gram_chars
   context_path= #"data/hot_words.txt"
   if [ ! -z $context_path ]; then
@@ -375,8 +375,12 @@ fi
 if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
 onnx_model_dir=$dir/onnx_gpu_model
 mkdir -p $onnx_model_dir
-python3 wenet/bin/export_onnx_gpu.py --config=$dir/train.yaml --checkpoint=$dir/avg_10.pt \
-  --cmvn_file=none --ctc_weight=0.5 --output_onnx_dir=$onnx_model_dir --fp16 --streaming
+python3 wenet/bin/export_onnx_gpu.py \
+  --config=$dir/train.yaml \
+  --checkpoint=$dir/avg_10.pt \
+  --cmvn_file=none --ctc_weight=0.5 \
+  --output_onnx_dir=$onnx_model_dir \
+  --fp16 --streaming
 cp $dict $dir/train.yaml $onnx_model_dir/
 
 fi

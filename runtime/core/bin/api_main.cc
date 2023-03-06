@@ -1,4 +1,5 @@
 // Copyright (c) 2022  Binbin Zhang (binbzha@qq.com)
+//               2023  dujing
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,15 +20,18 @@
 DEFINE_string(model_dir, "", "model dir path");
 DEFINE_string(wav_path, "", "single wave path");
 DEFINE_bool(enable_timestamp, false, "enable timestamps");
+DEFINE_int32(continuous_decoding, 1, "enable continuous_decoding");
 
 int main(int argc, char* argv[]) {
   gflags::ParseCommandLineFlags(&argc, &argv, false);
   google::InitGoogleLogging(argv[0]);
 
   wenet_set_log_level(2);
-
-  void* decoder = wenet_init(FLAGS_model_dir.c_str());
+  void* asr_model = wenet_init_resource(FLAGS_model_dir.c_str());
+  void* decoder = wenet_init();
+  wenet_set_decoder_resource(decoder, asr_model);
   wenet_set_timestamp(decoder, FLAGS_enable_timestamp == true ? 1 : 0);
+  wenet_set_continuous_decoding(decoder, FLAGS_continuous_decoding);
   wenet::WavReader wav_reader(FLAGS_wav_path);
   std::vector<int16_t> data(wav_reader.num_samples());
   for (int i = 0; i < wav_reader.num_samples(); i++) {
@@ -35,11 +39,18 @@ int main(int argc, char* argv[]) {
   }
 
   for (int i = 0; i < 10; i++) {
-    // Return the final result when last is 1
-    wenet_decode(decoder, reinterpret_cast<const char*>(data.data()),
-                 data.size() * 2, 1);
-    const char* result = wenet_get_result(decoder);
-    LOG(INFO) << i << " " << result;
+    //0.4s per chunk. Return the final result when last is 1
+    int interval = (0.4 * 16000) * 2;
+    int last = (data.size()*2)%interval;
+    int segment = (data.size()*2) / interval + int(last!=0);
+    for (int j = 0; j<segment; j++){
+      int start = j*interval;
+      int length = j==segment-1 ? last : interval;
+      wenet_decode(decoder, reinterpret_cast<const char*>(data.data())+start,
+                 length, int(j==segment-1));
+      const char* result = wenet_get_result(decoder);
+      LOG(INFO) << i << " " << result;
+    }
     wenet_reset(decoder);
   }
   wenet_free(decoder);

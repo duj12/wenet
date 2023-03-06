@@ -23,13 +23,13 @@ class BuildExtension(build_ext):
         os.makedirs(self.build_lib, exist_ok=True)
 
         cmake_args = os.environ.get("WENET_CMAKE_ARGS",
-                                    "-DCMAKE_BUILD_TYPE=Debug")
+                                    "-DCMAKE_BUILD_TYPE=Release")
         if "PYTHON_EXECUTABLE" not in cmake_args:
             print(f"Setting PYTHON_EXECUTABLE to {sys.executable}")
             cmake_args += f" -DPYTHON_EXECUTABLE={sys.executable}"
 
         src_dir = os.path.dirname(os.path.abspath(__file__))
-        os.system(f"cmake {cmake_args} -B {self.build_temp} -S {src_dir} ")
+        os.system(f"cmake {cmake_args} -B {self.build_temp} -S {src_dir} -DGPU=ON")
         ret = os.system(f"""
             cmake --build {self.build_temp} --target _wenet --config Release
         """)

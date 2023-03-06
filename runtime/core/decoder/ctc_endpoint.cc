@@ -32,6 +32,7 @@ CtcEndpoint::CtcEndpoint(const CtcEndpointConfig& config) : config_(config) {
 void CtcEndpoint::Reset() {
   num_frames_decoded_ = 0;
   num_frames_trailing_blank_ = 0;
+  vad_state_ = VADState::kVadNotActivated;
 }
 
 static bool RuleActivated(const CtcEndpointRule& rule,

@@ -1,5 +1,4 @@
 import wave
-#import wenetruntime as wenet
 from wenetruntime.decoder import ASRModel, Decoder
 
 
@@ -69,6 +68,66 @@ def process_one_thread(t_number,
 
     print(f"Thread {t_number}： 解码结束")
 
+
+def process_wav_scp(model, wav_root, wav_scp,
+                       common_context_list,
+                       vad_silence_len=1000,
+                       result_file=None, 
+                       label_file=None,
+                       wer_file = None):
+    """
+    用于测试多个音频文件列表的解码准确率
+    """
+    # 测试准确率
+    decoder = Decoder(model,
+                      context=common_context_list,
+                      continuous_decoding=True,
+                      vad_trailing_silence=vad_silence_len,
+                      nbest=1,
+                      enable_timestamp=False
+                      )
+    fout = None
+    if result_file is not None:
+        fout = open(result_file, 'w', encoding='utf-8')
+    import json
+    with open(wav_scp, 'r', encoding='utf-8') as fin:
+        for line in fin:
+            line = line.strip().split()
+            wav_name, wav_path = line[0], line[1]
+            wav_file = wav_root+'/'+wav_path
+            print(f"Process {wav_file}")
+            # In demo we read wave in non-streaming fashion.
+            with wave.open(wav_file, 'rb') as fin:
+                assert fin.getnchannels() == 1
+                wav = fin.readframes(fin.getnframes())
+            if fout:
+                fout.write(wav_name + " ")
+            # WAV is 16k, 16bits, and decode every 0.4 seconds(16 frames for 40 fps)
+            interval = int(0.4 * 16000) * 2
+            for i in range(0, len(wav), interval):
+                last = False if i + interval < len(wav) else True
+                chunk_wav = wav[i: min(i + interval, len(wav))]
+                ans = decoder.decode(chunk_wav, last)
+                print(ans)
+                result= json.loads(ans) if len(ans)>0 else None
+                if fout is not None and result and result["type"] == "final_result" and len(result['nbest']) > 0:
+                    print(result["nbest"][0]["sentence"])
+                    fout.write(result["nbest"][0]["sentence"])
+            if fout:
+                fout.write("\n")
+                fout.flush()
+
+
+
+    #测试解码准确率
+    import os
+    if label_file is not None and fout is not None:
+        os.system(f"python3 ../../resource/tools/compute-wer.py --char=1 --v=1  "
+                  f"{label_file} {result_file} > {wer_file} ; "
+                  f"tail {wer_file}")
+
+
+
 if __name__ == "__main__":
 
     """
@@ -86,9 +145,36 @@ if __name__ == "__main__":
     #初始化模型
     model = None
     print("创建模型，为多个线程公有内存")
-    model = ASRModel("../../resource/ASR_General")
+    model = ASRModel("../../resource/ASR")
     print("创建模型，模型加载已完毕")
 
+    print("下面先测试模型解码准确率...")
+    wav_root = "../../resource/WAV"
+    wav_scp = "../../resource/WAV/test_xmov_youling.scp0"
+    result_file = "../../resource/WAV/test_xmov_youling.asr"
+    label_file = "../../resource/WAV/test_xmov_youling.txt"
+    wer_file = "../../resource/WAV/test_xmov_youling.wer"
+    vad_silence_len=1000
+    process_wav_scp(model, wav_root, wav_scp,
+                       common_context_list,
+                       vad_silence_len,
+                       result_file,
+                       label_file)
+    print("测试准确率完毕")
+
+    print("测试输入为空，强制中断解码的情况...")
+    decoder = Decoder(model,
+                      context=common_context_list,
+                      continuous_decoding=True,
+                      vad_trailing_silence=vad_silence_len,
+                      nbest=1,
+                      enable_timestamp=False
+                      )
+    ans = decoder.decode(b'', True)
+    print(ans)
+    print("测试中断解码完毕")
+
+    print("下面测试多线程加载不同热词...")
     import threading
     t_count = 2
     case_count = 2
@@ -117,3 +203,5 @@ if __name__ == "__main__":
         将Model和Decoder分开，Decoder为每个线程私有，那么不需要加锁就可以实现多个线程同时流式识别。
         """
         #threads[i].join()
+
+
