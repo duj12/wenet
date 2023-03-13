@@ -54,6 +54,10 @@ void CtcPrefixBeamSearch::Reset() {
   times_.emplace_back(empty);
 }
 
+void  CtcPrefixBeamSearch::ResetContext(std::shared_ptr<ContextGraph>& context_graph){
+  context_graph_ = context_graph;
+}
+
 static bool PrefixScoreCompare(
     const std::pair<std::vector<int>, PrefixScore>& a,
     const std::pair<std::vector<int>, PrefixScore>& b) {

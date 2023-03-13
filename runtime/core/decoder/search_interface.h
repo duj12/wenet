@@ -30,6 +30,7 @@ class SearchInterface {
   virtual ~SearchInterface() {}
   virtual void Search(const std::vector<std::vector<float>>& logp) = 0;
   virtual void Reset() = 0;
+  virtual void ResetContext(std::shared_ptr<ContextGraph>& context_graph) = 0;
   virtual void FinalizeSearch() = 0;
 
   virtual SearchType Type() const = 0;

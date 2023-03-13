@@ -35,10 +35,30 @@ def process_one_thread(t_number,
     decoder = Decoder(model,
                       context=common_context_list,
                       continuous_decoding=True,
-                      vad_trailing_silence=vad_silence_len,
+                      vad_trailing_silence=1000,
                       nbest=1,
                       enable_timestamp=False
                       )
+
+    ###################################################################
+    ### Do warmup. 预热Decoder
+    ###################################################################
+    with wave.open("../../resource/WAV/warmup.wav", 'rb') as fin:
+        assert fin.getnchannels() == 1
+        wav = fin.readframes(fin.getnframes())
+
+    print(f"Thread {t_number}： 开始预热音频解码...")
+    print(f"Thread {t_number}： 预热Decoder时，在调用decode方法时如果Decoder没初始化，会在内部自动初始化" )
+    # We suppose the wav is 16k, 16bits, and decode every 0.5 seconds
+    interval = int(0.5 * 16000) * 2
+    for i in range(0, len(wav), interval):
+        last = False if i + interval < len(wav) else True
+        chunk_wav = wav[i: min(i + interval, len(wav))]
+        ans = decoder.decode(chunk_wav, last)
+        print(ans)
+    print(f"Thread {t_number}： 预热音频解码结束.")
+
+    decoder.set_log_level(2)
 
     print(f"Thread {t_number}： 加载私有热词")
     # 此时decoder已经加载了common_context_list, 如果需要设置用户自定义list，reset一下。
@@ -48,9 +68,9 @@ def process_one_thread(t_number,
     # Decoder已经设定好vad_silence_length, 但是如果有新用户要更改，直接再set一下。
     decoder.set_vad_trailing_silence(vad_silence_len)
 
-    print(f"Thread {t_number}： 初始化解码器")
-    # Decoder设定完毕，需要再初始化一下。
-    decoder.init_decoder()
+    print(f"Thread {t_number}： 为单个用户重设解码器")
+    #更改了热词和VAD，需要重置一下decoder
+    decoder.reset_user_decoder()
 
     # In demo we read wave in non-streaming fashion.
     with wave.open(wav_file, 'rb') as fin:
@@ -86,6 +106,7 @@ def process_wav_scp(model, wav_root, wav_scp,
                       nbest=1,
                       enable_timestamp=False
                       )
+    decoder.set_log_level(2)
     fout = None
     if result_file is not None:
         fout = open(result_file, 'w', encoding='utf-8')
@@ -113,6 +134,8 @@ def process_wav_scp(model, wav_root, wav_scp,
                 if fout is not None and result and result["type"] == "final_result" and len(result['nbest']) > 0:
                     print(result["nbest"][0]["sentence"])
                     fout.write(result["nbest"][0]["sentence"])
+
+                print("decoder.is_warmed: ",decoder.is_warmed())
             if fout:
                 fout.write("\n")
                 fout.flush()
@@ -145,28 +168,31 @@ if __name__ == "__main__":
     #初始化模型
     model = None
     print("创建模型，为多个线程公有内存")
-    model = ASRModel("../../resource/ASR")
+    model = ASRModel("../../resource/ASR", num_thread=4)
     print("创建模型，模型加载已完毕")
 
-    print("下面先测试模型解码准确率...")
-    wav_root = "../../resource/WAV"
-    wav_scp = "../../resource/WAV/test_xmov_youling.scp0"
-    result_file = "../../resource/WAV/test_xmov_youling.asr"
-    label_file = "../../resource/WAV/test_xmov_youling.txt"
-    wer_file = "../../resource/WAV/test_xmov_youling.wer"
-    vad_silence_len=1000
-    process_wav_scp(model, wav_root, wav_scp,
-                       common_context_list,
-                       vad_silence_len,
-                       result_file,
-                       label_file)
-    print("测试准确率完毕")
+    ACC_test = True
+
+    if ACC_test:
+        print("下面先测试模型解码准确率...")
+        wav_root = "../../resource/WAV"
+        wav_scp = "../../resource/WAV/test_xmov_youling.scp0"
+        result_file = "../../resource/WAV/test_xmov_youling.asr"
+        label_file = "../../resource/WAV/test_xmov_youling.txt"
+        wer_file = "../../resource/WAV/test_xmov_youling.wer"
+        vad_silence_len=1000
+        process_wav_scp(model, wav_root, wav_scp,
+                           common_context_list,
+                           vad_silence_len,
+                           result_file,
+                           label_file)
+        print("测试准确率完毕")
 
     print("测试输入为空，强制中断解码的情况...")
     decoder = Decoder(model,
                       context=common_context_list,
                       continuous_decoding=True,
-                      vad_trailing_silence=vad_silence_len,
+                      vad_trailing_silence=1000,
                       nbest=1,
                       enable_timestamp=False
                       )
@@ -180,11 +206,13 @@ if __name__ == "__main__":
     case_count = 2
     wav_files = ["../../resource/WAV/test_xmov_youling/asrtest_axiong_0001.wav",
                  "../../resource/WAV/test_xmov_youling/asrtest_axiong_0002.wav"]
+    wav_files = ["../../resource/WAV/10seconds_sil_new.wav",
+                 "../../resource/WAV/10seconds_sil_new.wav"]
     user_context_lists = [["小黄车", "抓紧上车", "三二一上链接", "公募五零"], ["公墓武林"]]
-    vad_silences = [500, 800]
+    vad_silences = [500, 2500]
     """
     Demo中给了两条音频进行并行解码测试，用户热词分别是4个和1个(实际打印log为加上公有热词的数量)
-    VAD静音参数为500ms和800ms。可根据输出结果查看每个线程的情况。
+    VAD静音参数为500ms和2500ms。可根据输出结果查看每个线程的情况。
     """
 
     threads = []

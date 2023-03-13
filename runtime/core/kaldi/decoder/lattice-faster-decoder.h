@@ -369,6 +369,7 @@ class LatticeFasterDecoderTpl {
   // whenever we call ProcessEmitting().
   inline int32 NumFramesDecoded() const { return active_toks_.size() - 1; }
 
+  std::shared_ptr<wenet::ContextGraph> context_graph_ = nullptr;
  protected:
   // we make things protected instead of private, as code in
   // LatticeFasterOnlineDecoderTpl, which inherits from this, also uses the
@@ -521,7 +522,6 @@ class LatticeFasterDecoderTpl {
   BaseFloat final_relative_cost_;
   BaseFloat final_best_cost_;
 
-  std::shared_ptr<wenet::ContextGraph> context_graph_ = nullptr;
 
   // There are various cleanup tasks... the toks_ structure contains
   // singly linked lists of Token pointers, where Elem is the list type.

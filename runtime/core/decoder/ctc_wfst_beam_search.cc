@@ -73,6 +73,11 @@ void CtcWfstBeamSearch::Reset() {
   decoder_.InitDecoding();
 }
 
+void CtcWfstBeamSearch::ResetContext(std::shared_ptr<ContextGraph>& context_graph){
+    context_graph_ = context_graph;
+    decoder_.context_graph_ = context_graph;
+}
+
 void CtcWfstBeamSearch::Search(const std::vector<std::vector<float>>& logp) {
   if (0 == logp.size()) {
     return;

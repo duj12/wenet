@@ -49,4 +49,7 @@ PYBIND11_MODULE(_wenet, m) {
         "enable continuous decoding or not");
   m.def("wenet_set_vad_trailing_silence", &wenet_set_vad_trailing_silence,
         "Set VAD trailing silence length, in ms.");
+
+  m.def("wenet_reset_user_decoder", &wenet_reset_user_decoder,
+        "reset the decoder for specific user.");
 }

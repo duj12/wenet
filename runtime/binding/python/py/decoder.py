@@ -18,14 +18,24 @@ from typing import List, Optional
 import _wenet
 
 class ASRModel:
-    def __init__(self, model_dir: str):
+    def __init__(self, model_dir: str,
+                 num_thread: int = 1):
         """
         :param model_dir: 模型资源的路径，必须包含final.zip和units.txt，可选包含TLG.fst,words.txt,hot_words.txt
+        num_thread: 默认每路解码所需的线程数量，也可以通过在启动Decode时传入环境变量OMP_NUM_THREADS=num_thread进行设置
         """
-        self.model = _wenet.wenet_init_resource(model_dir)
+        _wenet.wenet_set_log_level(2)
+        self.model = _wenet.wenet_init_resource(model_dir, num_thread)
 
     def __del__(self):
         _wenet.wenet_free_resource(self.model)
+
+    def set_log_level(self, level: int = 2):
+        """
+        :param level: 0,1,2. normally increase to 2. higher with more log information
+        :return:
+        """
+        _wenet.wenet_set_log_level(level)  # set the log level
 
 class Decoder:
 
@@ -35,7 +45,7 @@ class Decoder:
                  nbest: int = 1,
                  enable_timestamp: bool = False,
                  context: Optional[List[str]] = None,
-                 context_score: float = 3.0,
+                 context_score: float = 0.5,
                  continuous_decoding: bool = False,
                  vad_trailing_silence: int = 1000, ):
         """ Init WeNet decoder
@@ -63,8 +73,25 @@ class Decoder:
         self.set_continuous_decoding(continuous_decoding)
         self.set_vad_trailing_silence(vad_trailing_silence)
 
+        # some private members, for warmup telling
+        self._is_first_decoded = False
+        self._is_warmed = False
+
     def __del__(self):
         _wenet.wenet_free(self.d)
+
+    def __version__(self):
+        return "1.1.1"
+
+    def set_log_level(self, level):
+        """
+        :param level: 0,1,2. normally increase to 2. higher with more log information
+        :return:
+        """
+        _wenet.wenet_set_log_level(level)  # set the log level
+
+    def is_warmed(self):
+        return self._is_warmed
 
     def load_resource(self, model):
         _wenet.wenet_set_decoder_resource(self.d, model)
@@ -76,6 +103,10 @@ class Decoder:
     def init_decoder(self):
         """Init the user specific decoder"""
         _wenet.wenet_init_decoder(self.d)
+
+    def reset_user_decoder(self):
+        """Init the user specific decoder"""
+        _wenet.wenet_reset_user_decoder(self.d)
 
     def set_nbest(self, n: int):
         assert n >= 1
@@ -126,6 +157,10 @@ class Decoder:
         result = _wenet.wenet_get_result(self.d)
         if last:  # Reset status for next decoding automatically
             self.reset()
+            if self._is_first_decoded == True:
+                self._is_warmed = True
+            self._is_first_decoded = True
+
         return result
 
     def decode_wav(self, wav_file: str) -> str:

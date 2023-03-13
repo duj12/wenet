@@ -130,6 +130,11 @@ class AsrDecoder {
   const std::vector<DecodeResult>& result() const { return result_; }
   const CtcEndpoint::VADState GetVADState() const { return vad_state_; }
 
+  // to public
+  std::unique_ptr<SearchInterface> searcher_;
+  std::unique_ptr<CtcEndpoint> ctc_endpointer_;
+  std::shared_ptr<fst::Fst<fst::StdArc>> fst_ = nullptr;
+
  private:
   DecodeState AdvanceDecoding(bool block = true);
   void AttentionRescoring();
@@ -140,7 +145,6 @@ class AsrDecoder {
   std::shared_ptr<AsrModel> model_;
   std::shared_ptr<PostProcessor> post_processor_;
 
-  std::shared_ptr<fst::Fst<fst::StdArc>> fst_ = nullptr;
   // output symbol table
   std::shared_ptr<fst::SymbolTable> symbol_table_;
   // e2e unit symbol table
@@ -153,8 +157,6 @@ class AsrDecoder {
   int global_frame_offset_ = 0;
   const int time_stamp_gap_ = 100;  // timestamp gap between words in a sentence
 
-  std::unique_ptr<SearchInterface> searcher_;
-  std::unique_ptr<CtcEndpoint> ctc_endpointer_;
   CtcEndpoint::VADState vad_state_ = CtcEndpoint::VADState::kVadNotActivated; 
 
   int num_frames_in_current_chunk_ = 0;

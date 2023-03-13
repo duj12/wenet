@@ -21,7 +21,7 @@ extern "C" {
 #endif
 
 // Init Model
-void* wenet_init_resource(const char* model_dir);
+void* wenet_init_resource(const char* model_dir, int num_thread);
 
 // free Model
 void wenet_free_resource(void* model);
@@ -131,6 +131,11 @@ void wenet_set_continuous_decoding(void* decoder, int flag);
  *  the length is in ms, default = 1000 ms.
  */
 void wenet_set_vad_trailing_silence(void* decoder, int length_in_ms);
+
+/*
+* Reset user defined decoder. include hotwords and vad configure
+*/
+void wenet_reset_user_decoder(void* decoder);
 
 
 #ifdef __cplusplus

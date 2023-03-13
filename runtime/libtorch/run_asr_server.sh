@@ -48,7 +48,7 @@ if [ ! -z $context_path ]; then
   decode_opts="--context_path ${context_path} --context_score ${context_score} "
 fi
 
-CUDA_VISIBLE_DEVICES="6" ./build/bin/websocket_server_main \
+CUDA_VISIBLE_DEVICES="6" ./build_cpu/bin/websocket_server_main \
     --port 10086 \
     --frame_shift 100 \
     --chunk_size 16 ${wfst_decode_opts} ${decode_opts} \

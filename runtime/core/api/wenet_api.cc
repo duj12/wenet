@@ -30,10 +30,10 @@
 class ASRModel{
  public:
   bool use_lm_symbols = false;
-  explicit ASRModel(const std::string& model_dir) {
+  explicit ASRModel(const std::string& model_dir, int num_thread = 1) {
     // Resource init
     resource_ = std::make_shared<wenet::DecodeResource>();
-    wenet::TorchAsrModel::InitEngineThreads();
+    wenet::TorchAsrModel::InitEngineThreads(num_thread);
     std::string model_path = wenet::JoinPath(model_dir, "final.zip");
     CHECK(wenet::FileExists(model_path));
 
@@ -126,7 +126,7 @@ class Recognizer {
   }
 
   void InitDecoder() {
-    CHECK(decoder_ == nullptr);
+    CHECK(decoder_ == nullptr);   //确保decoder_尚未初始化
     // Optional init context graph
     if (context_.size() > 0 || user_context_.size() > 0) {
       std::vector<std::string> context; 
@@ -157,6 +157,37 @@ class Recognizer {
     // Init decoder
     decoder_ = std::make_shared<wenet::AsrDecoder>(feature_pipeline_, resource_,
                                                    *decode_options_);
+  }
+
+  void ResetUserDecoder(){
+    CHECK(decoder_ != nullptr); 
+    decoder_->ctc_endpointer_->config_.rule2.min_trailing_silence = decode_options_->ctc_endpoint_config.rule2.min_trailing_silence;
+    
+    //TODO: we need to free the old context graph, and recreate a new one.
+    // Create a user specific context.
+    if (context_.size() > 0 || user_context_.size() > 0) {
+      std::vector<std::string> context; 
+      if (context_.size()>0){
+        for (int i=0; i<context_.size(); i++){
+          context.emplace_back(context_[i]);
+        }
+      }
+      if (user_context_.size()>0){
+        for (int i=0; i<user_context_.size(); i++){
+          context.emplace_back(user_context_[i]);
+        }
+      }
+      context_config_->context_score = context_score_;
+      auto context_graph =
+          std::make_shared<wenet::ContextGraph>(*context_config_);
+      context_graph->BuildContextGraph(context, resource_->symbol_table, use_lm_symbols_);
+
+      resource_->context_graph = context_graph;
+
+      // reset decoder->searcher_
+      decoder_->searcher_->ResetContext(context_graph);
+
+    }
   }
 
   void Decode(const char* data, int len, int last) {
@@ -231,7 +262,7 @@ class Recognizer {
   void set_continuous_decoding(bool flag) { continuous_decoding_ = flag; }
   //Give access to VAD trailing silence length
   void set_vad_trailing_silence(const int length_in_ms) {
-    decode_options_->ctc_endpoint_config.rule2.min_trailing_silence = length_in_ms;
+    decode_options_->ctc_endpoint_config.rule2.min_trailing_silence = length_in_ms;  
   }
 
   void set_resource(std::shared_ptr<wenet::DecodeResource> resource){
@@ -260,8 +291,8 @@ class Recognizer {
   bool continuous_decoding_ = false;
 };
 
-void* wenet_init_resource(const char* model_dir){
-  ASRModel* model = new ASRModel(model_dir);
+void* wenet_init_resource(const char* model_dir, int num_thread){
+  ASRModel* model = new ASRModel(model_dir, num_thread);
   return reinterpret_cast<void*>(model);
 }
 
@@ -354,4 +385,10 @@ void wenet_set_continuous_decoding(void* decoder, int flag) {
 void wenet_set_vad_trailing_silence(void* decoder, int length_in_ms) {
   Recognizer* recognizer = reinterpret_cast<Recognizer*>(decoder);
   recognizer->set_vad_trailing_silence(length_in_ms);
+}
+
+
+void wenet_reset_user_decoder(void* decoder){
+  Recognizer* recognizer = reinterpret_cast<Recognizer*>(decoder);
+  recognizer->ResetUserDecoder();
 }

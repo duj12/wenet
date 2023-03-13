@@ -315,23 +315,25 @@ if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
   fi
   # 7.4 Decoding with runtime
   test_sets="test_aishell test_net test_meeting test_conv test_libriclean  test_giga test_talcs test_htrs462 test_sjtcs test_xmov test_xmov_inter"
-  #test_sets="test_youguang "
+  test_sets="test_xmov_inter "
 
   model_suffix= #"_quant"
-  CUDA_VISIBLE_DEVICES="2"
+  CUDA_VISIBLE_DEVICES="3"
   num_gpus=$(echo $CUDA_VISIBLE_DEVICES | awk -F "," '{print NF}')
   thread_num=1
   warmup=1
   nj=8 #$num_gpus
+  use_lm=1
+  length_penalty=-3.0
+  lm=lm_250G_4gram+asrtext_6gram_chars
+  context_path="data/hot_words.txt"
+  reverse_weight=0.3
+  chunk_size=16
   if [ ! -z $CUDA_VISIBLE_DEVICES ]; then
     decode_opts="--gpu_devices $CUDA_VISIBLE_DEVICES "$decode_opts
   else
     decode_opts=""$decode_opts
   fi
-  use_lm=1
-  length_penalty=-3.0
-  lm=lm_250G_4gram+asrtext_6gram_chars
-  context_path= #"data/hot_words.txt"
   if [ ! -z $context_path ]; then
     decode_suffix="_with_context"
     decode_opts="--context_path $context_path --context_score 3 "$decode_opts
@@ -339,8 +341,6 @@ if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
     decode_suffix=""
     decode_opts=""$decode_opts
   fi
-  reverse_weight=0.0
-  chunk_size=16
   for test in ${test_sets}; do
 
   if [ $use_lm -eq 1 ]; then

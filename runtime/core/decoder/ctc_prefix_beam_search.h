@@ -100,6 +100,8 @@ class CtcPrefixBeamSearch : public SearchInterface {
 
   void Search(const std::vector<std::vector<float>>& logp) override;
   void Reset() override;
+  
+  void ResetContext(std::shared_ptr<ContextGraph>& context_graph) override;
   void FinalizeSearch() override;
   SearchType Type() const override { return SearchType::kPrefixBeamSearch; }
   void UpdateOutputs(const std::pair<std::vector<int>, PrefixScore>& prefix);
@@ -119,6 +121,7 @@ class CtcPrefixBeamSearch : public SearchInterface {
   const std::vector<float>& Likelihood() const override { return likelihood_; }
   const std::vector<std::vector<int>>& Times() const override { return times_; }
 
+  std::shared_ptr<ContextGraph> context_graph_ = nullptr;
  private:
   int abs_time_step_ = 0;
 
@@ -129,7 +132,6 @@ class CtcPrefixBeamSearch : public SearchInterface {
   std::vector<std::vector<int>> times_;
 
   std::unordered_map<std::vector<int>, PrefixScore, PrefixHash> cur_hyps_;
-  std::shared_ptr<ContextGraph> context_graph_ = nullptr;
   // Outputs contain the hypotheses_ and tags like: <context> and </context>
   std::vector<std::vector<int>> outputs_;
   const CtcPrefixBeamSearchOptions& opts_;

@@ -64,6 +64,7 @@ class CtcWfstBeamSearch : public SearchInterface {
       const std::shared_ptr<ContextGraph>& context_graph);
   void Search(const std::vector<std::vector<float>>& logp) override;
   void Reset() override;
+  void ResetContext(std::shared_ptr<ContextGraph>& context_graph) override;
   void FinalizeSearch() override;
   SearchType Type() const override { return SearchType::kWfstBeamSearch; }
   // For CTC prefix beam search, both inputs and outputs are hypotheses_
@@ -76,6 +77,8 @@ class CtcWfstBeamSearch : public SearchInterface {
   const std::vector<float>& Likelihood() const override { return likelihood_; }
   const std::vector<std::vector<int>>& Times() const override { return times_; }
 
+  kaldi::LatticeFasterOnlineDecoder decoder_;
+  std::shared_ptr<ContextGraph> context_graph_;
  private:
   // Sub one and remove <blank>
   void ConvertToInputs(const std::vector<int>& alignment,
@@ -93,8 +96,6 @@ class CtcWfstBeamSearch : public SearchInterface {
   std::vector<float> likelihood_;
   std::vector<std::vector<int>> times_;
   DecodableTensorScaled decodable_;
-  kaldi::LatticeFasterOnlineDecoder decoder_;
-  std::shared_ptr<ContextGraph> context_graph_;
   const CtcWfstBeamSearchOptions& opts_;
 };
 

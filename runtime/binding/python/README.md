@@ -1,3 +1,17 @@
+
+# WeNet Python Binding
+
+This is a python binding of WeNet.
+
+WeNet is a production first and production ready end-to-end speech recognition toolkit.
+
+The best things of the binding are:
+
+1. Multiple languages supports, including English, Chinese. Other languages are in development.
+2. Non-streaming and streaming API
+3. N-best, contextual biasing, and timestamp supports, which are very important for speech productions.
+4. Alignment support. You can get phone level alignments this tool, on developing.
+
 # 使用说明
 
 ## 安装方法
@@ -19,21 +33,9 @@
     同时，需要在py/decoder.py里将做过的改动进行同步。
     
 
-# WeNet Python Binding
 
-This is a python binding of WeNet.
-
-WeNet is a production first and production ready end-to-end speech recognition toolkit.
-
-The best things of the binding are:
-
-1. Multiple languages supports, including English, Chinese. Other languages are in development.
-2. Non-streaming and streaming API
-3. N-best, contextual biasing, and timestamp supports, which are very important for speech productions.
-4. Alignment support. You can get phone level alignments this tool, on developing.
-
-
-## Usage
+## 使用示例
+具体调用方式可以参考run_demo.py
 
 Note:
 
@@ -45,15 +47,17 @@ Note:
 ``` python
 import sys
 import torch
-import wenetruntime as wenet
+from wenetruntime.decoder import ASRModel, Decoder
 
 wav_file = sys.argv[1]
-decoder = wenet.Decoder(lang='chs')
+model_dir = sys.argv[2]
+model = ASRModel(model_dir)
+decoder = Decoder(model)
 ans = decoder.decode_wav(wav_file)
 print(ans)
 ```
 
-You can also specify the following parameter in `wenet.Decoder`
+You can also specify the following parameter in `Decoder`
 
 * `lang` (str): The language you used, `chs` for Chinese, and `en` for English.
 * `model_dir` (str): is the `Runtime Model` directory, it contains the following files.
@@ -88,15 +92,16 @@ decoder = wenet.Decoder(model_dir,
 import sys
 import torch
 import wave
-import wenetruntime as wenet
+from wenetruntime.decoder import ASRModel, Decoder
 
 test_wav = sys.argv[1]
+model_dir = sys.argv[2]
 
 with wave.open(test_wav, 'rb') as fin:
     assert fin.getnchannels() == 1
     wav = fin.readframes(fin.getnframes())
-
-decoder = wenet.Decoder(lang='chs')
+model = ASRModel(model_dir)
+decoder = Decoder(model)
 # We suppose the wav is 16k, 16bits, and decode every 0.5 seconds
 interval = int(0.5 * 16000) * 2
 for i in range(0, len(wav), interval):
@@ -106,5 +111,5 @@ for i in range(0, len(wav), interval):
     print(ans)
 ```
 
-You can use the same parameters as we introduced above to control the behavior of `wenet.Decoder`
+You can use the same parameters as we introduced above to control the behavior of `Decoder`
 

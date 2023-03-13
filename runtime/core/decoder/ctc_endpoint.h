@@ -77,8 +77,8 @@ class CtcEndpoint {
 
   const VADState get_vad_state() const { return vad_state_; }
   
+  CtcEndpointConfig config_;  // to public
  private:
-  CtcEndpointConfig config_;
   int frame_shift_in_ms_ = -1;
   int num_frames_decoded_ = 0;
   int num_frames_trailing_blank_ = 0;
