@@ -39,6 +39,7 @@ struct ContextConfig {
 class ContextGraph {
  public:
   explicit ContextGraph(ContextConfig config);
+  void FreeContextGraph();
   void BuildContextGraph(const std::vector<std::string>& query_context,
                          const std::shared_ptr<fst::SymbolTable>& symbol_table,
                          bool use_lm_symbols);

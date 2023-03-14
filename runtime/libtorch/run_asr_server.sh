@@ -19,7 +19,7 @@ dict_path=$lang_dir/words.txt  #语言模型词图对应词典的路径，默认
 
 #可选资源：热词列表，提供context_path，即可加载热词，并在解码中进行热词激励。
 context_path=$lang_dir/hot_words.txt    #热词路径，每个词一行
-context_score=3                         #热词激励分数，一般不用改
+context_score=1                         #热词激励分数，一般不用改
 
 #下面是WFST解码参数，一般不用改。
 acoustic_scale=1.0
@@ -48,7 +48,7 @@ if [ ! -z $context_path ]; then
   decode_opts="--context_path ${context_path} --context_score ${context_score} "
 fi
 
-CUDA_VISIBLE_DEVICES="6" ./build_cpu/bin/websocket_server_main \
+CUDA_VISIBLE_DEVICES="0" ./build/bin/websocket_server_main \
     --port 10086 \
     --frame_shift 100 \
     --chunk_size 16 ${wfst_decode_opts} ${decode_opts} \

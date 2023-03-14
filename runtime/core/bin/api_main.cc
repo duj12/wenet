@@ -24,6 +24,7 @@
 DEFINE_string(model_dir, "", "model dir path");
 DEFINE_string(wav_path, "", "single wave path");
 DEFINE_string(context_path, "", "hot words path");
+DEFINE_string(user_context_path, "", "user hot words path");
 DEFINE_bool(enable_timestamp, false, "enable timestamps");
 DEFINE_int32(continuous_decoding, 1, "enable continuous_decoding");
 DEFINE_int32(vad_trailing_silence, 1000, "VAD trailing silence length");
@@ -31,19 +32,22 @@ DEFINE_int32(thread_num, 1, "num of decode thread");
 
 void decode(std::string wav_path, void* decoder){
   wenet_clear_user_context(decoder);
-  LOG(INFO) << "Reading context " << FLAGS_context_path;
-  std::vector<std::string> contexts;
-  std::ifstream infile(FLAGS_context_path);
-  std::string context;
-  while (getline(infile, context)) {
-    //contexts.emplace_back(Trim(context));
-    wenet_add_user_context(decoder, context.c_str());
+  if (!FLAGS_user_context_path.empty()){
+      LOG(INFO) << "Reading context " << FLAGS_user_context_path;
+      std::vector<std::string> contexts;
+      std::ifstream infile(FLAGS_user_context_path);
+      std::string context;
+      while (getline(infile, context)) {
+        //contexts.emplace_back(Trim(context));
+        wenet_add_user_context(decoder, context.c_str());
+      }
   }
     
   wenet_set_timestamp(decoder, FLAGS_enable_timestamp == true ? 1 : 0);
   wenet_set_continuous_decoding(decoder, FLAGS_continuous_decoding);
   wenet_set_vad_trailing_silence(decoder, FLAGS_vad_trailing_silence);
-  wenet_reset_user_decoder(decoder);
+  //for (int i=0; i<10000; i++)   // for loop to test reset_user_decoder
+  wenet_reset_user_decoder(decoder);    // to make user decoder work.
   wenet::WavReader wav_reader(wav_path);
   std::vector<int16_t> data(wav_reader.num_samples());
   for (int i = 0; i < wav_reader.num_samples(); i++) {
@@ -82,6 +86,17 @@ int main(int argc, char* argv[]) {
     void* decoder = wenet_init();
     wenet_set_decoder_resource(decoder, asr_model);
     wenet_set_vad_trailing_silence(decoder, 1000);   //set a default value
+    if (!FLAGS_context_path.empty()){
+      LOG(INFO) << "Reading context " << FLAGS_context_path;
+      std::vector<std::string> contexts;
+      std::ifstream infile(FLAGS_context_path);
+      std::string context;
+      while (getline(infile, context)) {
+        //contexts.emplace_back(Trim(context));
+        wenet_add_context(decoder, context.c_str());
+      }
+    }
+    
     wenet_init_decoder(decoder);  // initial this decoder.
     pool.enqueue(decode, wav_path, decoder);
   }

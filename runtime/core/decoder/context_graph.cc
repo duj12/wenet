@@ -25,6 +25,12 @@
 
 namespace wenet {
 
+void ContextGraph::FreeContextGraph() {
+  if (graph_ != nullptr) {
+    graph_.reset();  //free unique_ptr's memory, and make graph_ as nullptr
+  }
+}
+
 ContextGraph::ContextGraph(ContextConfig config) : config_(config) {}
 
 void ContextGraph::BuildContextGraph(
@@ -89,6 +95,7 @@ void ContextGraph::BuildContextGraph(
 
 int ContextGraph::GetNextState(int cur_state, int word_id, float* score,
                                bool* is_start_boundary, bool* is_end_boundary) {
+  CHECK(nullptr != graph_) << "context fst graph_ should not be nullptr!";
   int next_state = 0;
   for (fst::ArcIterator<fst::StdFst> aiter(*graph_, cur_state); !aiter.Done();
        aiter.Next()) {

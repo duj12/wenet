@@ -45,7 +45,7 @@ class Decoder:
                  nbest: int = 1,
                  enable_timestamp: bool = False,
                  context: Optional[List[str]] = None,
-                 context_score: float = 0.5,
+                 context_score: float = 1.0,
                  continuous_decoding: bool = False,
                  vad_trailing_silence: int = 1000, ):
         """ Init WeNet decoder
@@ -81,7 +81,7 @@ class Decoder:
         _wenet.wenet_free(self.d)
 
     def __version__(self):
-        return "1.1.1"
+        return "1.2.0"
 
     def set_log_level(self, level):
         """
