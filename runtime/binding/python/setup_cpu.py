@@ -66,7 +66,7 @@ package_name = "wenetruntime"
 
 setuptools.setup(
     name=package_name,
-    version='1.2.0',
+    version='1.3.0',
     author="dujing",
     author_email="dujing@xmov.ai",
     package_dir={

@@ -26,6 +26,7 @@ DEFINE_string(wav_path, "", "single wave path");
 DEFINE_string(context_path, "", "hot words path");
 DEFINE_string(user_context_path, "", "user hot words path");
 DEFINE_bool(enable_timestamp, false, "enable timestamps");
+DEFINE_bool(enable_itn, false, "enable inverse text normalization");
 DEFINE_int32(continuous_decoding, 1, "enable continuous_decoding");
 DEFINE_int32(vad_trailing_silence, 1000, "VAD trailing silence length");
 DEFINE_int32(thread_num, 1, "num of decode thread");
@@ -42,7 +43,7 @@ void decode(std::string wav_path, void* decoder){
         wenet_add_user_context(decoder, context.c_str());
       }
   }
-    
+  wenet_set_itn(decoder, FLAGS_enable_itn == true ? 1 : 0);
   wenet_set_timestamp(decoder, FLAGS_enable_timestamp == true ? 1 : 0);
   wenet_set_continuous_decoding(decoder, FLAGS_continuous_decoding);
   wenet_set_vad_trailing_silence(decoder, FLAGS_vad_trailing_silence);

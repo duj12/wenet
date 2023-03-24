@@ -40,7 +40,8 @@ def process_one_thread(t_number,
                       continuous_decoding=True,
                       vad_trailing_silence=1000,
                       nbest=1,
-                      enable_timestamp=False
+                      enable_timestamp=False,
+                      enable_itn = False,
                       )
 
     ###################################################################
@@ -70,6 +71,7 @@ def process_one_thread(t_number,
     print(f"Thread {t_number}： 加载私有热词")
     # 此时decoder已经加载了common_context_list, 如果需要设置用户自定义list，reset一下。
     decoder.reset_user_context(user_context_list)
+    decoder.set_context_score(5.0)   # 设置热词分数
 
     print(f"Thread {t_number}： 设定VAD静音参数")
     # Decoder已经设定好vad_silence_length, 但是如果有新用户要更改，直接再set一下。
@@ -78,6 +80,12 @@ def process_one_thread(t_number,
     print(f"Thread {t_number}： 为单个用户重设解码器")
     #更改了热词和VAD，需要重置一下decoder
     decoder.reset_user_decoder()
+
+    # 下面两个操作不需要重置decoder
+    print(f"Thread {t_number}： 开启时间戳")
+    decoder.enable_timestamp(True)
+    print(f"Thread {t_number}： 开启文本反正则")
+    decoder.set_itn(True)
 
     # In demo we read wave in non-streaming fashion.
     with wave.open(wav_file, 'rb') as fin:
@@ -96,6 +104,7 @@ def process_one_thread(t_number,
         result = json.loads(ans) if len(ans) > 0 else None
         if result and result["type"] == "final_result" and len(result['nbest']) > 0:
             print(f"Thread {t_number}：", result["nbest"][0]["sentence"])
+            print(ans)
 
     print(f"Thread {t_number}： 解码结束")
 
@@ -115,7 +124,8 @@ def process_wav_scp(model, wav_root, wav_scp,
                       continuous_decoding=True,
                       vad_trailing_silence=vad_silence_len,
                       nbest=1,
-                      enable_timestamp=False
+                      enable_timestamp=False,
+                      enable_itn = False,
                       )
     decoder.set_log_level(LOG_LEVEL)
     fout = None
@@ -180,15 +190,16 @@ if __name__ == "__main__":
     model = ASRModel("../../resource/ASR", num_thread=4)
     print("创建模型，模型加载已完毕")
 
-    ACC_test = True
-
+    ACC_test = False
+    STOP_test = False
     if ACC_test:
+        test_set='test_xmov_youguang'
         print("下面先测试模型解码准确率...")
         wav_root = "../../resource/WAV"
-        wav_scp = "../../resource/WAV/test_xmov_youling.scp0"
-        result_file = "../../resource/WAV/test_xmov_youling.asr"
-        label_file = "../../resource/WAV/test_xmov_youling.txt"
-        wer_file = "../../resource/WAV/test_xmov_youling.wer"
+        wav_scp = f"../../resource/WAV/{test_set}.scp0"
+        result_file = f"../../resource/WAV/{test_set}.asr"
+        label_file = f"../../resource/WAV/{test_set}.txt"
+        wer_file = f"../../resource/WAV/{test_set}.wer"
         vad_silence_len=1000
         process_wav_scp(model, wav_root, wav_scp,
                            common_context_list,
@@ -196,26 +207,29 @@ if __name__ == "__main__":
                            result_file,
                            label_file)
         print("测试准确率完毕")
-
-    print("测试输入为空，强制中断解码的情况...")
-    decoder = Decoder(model,
-                      context=common_context_list,
-                      continuous_decoding=True,
-                      vad_trailing_silence=1000,
-                      nbest=1,
-                      enable_timestamp=False
-                      )
-    ans = decoder.decode(b'', True)
-    print(ans)
-    print("测试中断解码完毕")
+    if STOP_test:
+        print("测试输入为空，强制中断解码的情况...")
+        decoder = Decoder(model,
+                          context=common_context_list,
+                          continuous_decoding=True,
+                          vad_trailing_silence=1000,
+                          nbest=1,
+                          enable_timestamp=False,
+                          enable_itn=False,
+                          )
+        ans = decoder.decode(b'', True)
+        print(ans)
+        print("测试中断解码完毕")
 
     print("下面测试多线程加载不同热词...")
-    t_count = 2
+    t_count = 1
     case_count = 2
-    wav_files = ["../../resource/WAV/10seconds_sil_new.wav",
-                 "../../resource/WAV/10seconds_sil_new.wav"]
+    wav_files = ["../../resource/WAV/10second_sil.wav",
+                 "../../resource/WAV/10second_sil.wav"]
     user_context_lists = [["小黄车", "抓紧上车", "三二一上链接", "魔珐", "魔块"], ["魔法", "模块"]]
     vad_silences = [500, 2500]
+    itn = [True, False]   #设定是否开启
+    time_stamp = [True, False]
     """
     Demo中给了两条音频进行并行解码测试，用户热词分别是4个和1个(实际打印log为加上公有热词的数量)
     VAD静音参数为500ms和2500ms。可根据输出结果查看每个进程/线程的情况。
@@ -230,7 +244,7 @@ if __name__ == "__main__":
     #     p = Process(target=process_one_thread, args=(i, model, wav_files[i%case_count],
     #                                common_context_list,
     #                                user_context_lists[i%case_count],
-    #                                vad_silences[i%case_count]))  # 实例化进程对象
+    #                                vad_silences[i%case_count])  # 实例化进程对象
     #     p.start()
     #     process_list.append(p)
     #

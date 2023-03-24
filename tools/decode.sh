@@ -31,6 +31,9 @@ length_penalty=0.0
 context_path=
 context_score=3
 
+# long wave decoding
+min_trailing_silence=500
+continuous_decoding=true
 
 . tools/parse_options.sh || exit 1;
 if [ $# != 5 ]; then
@@ -55,6 +58,10 @@ dir=$5
 decode_opts=
 if [ ! -z $context_path ]; then
   decode_opts="--context_path ${context_path} --context_score ${context_score} "
+fi
+
+if [ $continuous_decoding ]; then
+  decode_opts=$decode_opts" --continuous_decoding true --min_trailing_silence $min_trailing_silence "
 fi
 
 mkdir -p $dir/split${nj}

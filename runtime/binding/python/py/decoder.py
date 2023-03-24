@@ -44,9 +44,10 @@ class Decoder:
                  lang: str = 'chs',
                  nbest: int = 1,
                  enable_timestamp: bool = False,
+                 enable_itn: bool = False,
                  context: Optional[List[str]] = None,
-                 context_score: float = 1.0,
-                 continuous_decoding: bool = False,
+                 context_score: float = 3.0,
+                 continuous_decoding: bool = True,
                  vad_trailing_silence: int = 1000, ):
         """ Init WeNet decoder
         Args:
@@ -67,6 +68,7 @@ class Decoder:
         self.set_language(lang)
         self.set_nbest(nbest)
         self.enable_timestamp(enable_timestamp)
+        self.set_itn(enable_itn)
         if context is not None:
             self.add_context(context)
             self.set_context_score(context_score)
@@ -81,7 +83,7 @@ class Decoder:
         _wenet.wenet_free(self.d)
 
     def __version__(self):
-        return "1.2.0"
+        return "1.3.0"
 
     def set_log_level(self, level):
         """
@@ -116,6 +118,10 @@ class Decoder:
     def enable_timestamp(self, flag: bool):
         tag = 1 if flag else 0
         _wenet.wenet_set_timestamp(self.d, tag)
+
+    def set_itn(self, flag: bool):
+        tag = 1 if flag else 0
+        _wenet.wenet_set_itn(self.d, tag)
 
     def add_context(self, contexts: List[str]):
         """add common hotwords"""

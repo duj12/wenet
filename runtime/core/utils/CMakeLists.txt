@@ -1,6 +1,7 @@
 add_library(utils STATIC
   string.cc
   utils.cc
+  utf8_string.cc
 )
 
 if(NOT ANDROID)

@@ -60,6 +60,13 @@ std::string PostProcessor::Process(const std::string& str, bool finish) {
   std::string result;
   result = ProcessSpace(str);
   // TODO(xcsong): do itn/punctuation if finish == true
+  // dujing: itn result will not align with time_stamp, so I consider to add itn in wenet_api.cc.
+  // if (finish == true and opts_.itn){
+  //   if (nullptr != postprocess_resource && nullptr != postprocess_resource->itn_processor){
+  //     result = postprocess_resource->itn_processor->tag(result);
+  //     result = postprocess_resource->itn_processor->verbalize(result);
+  //   }
+  // }
   return result;
 }
 

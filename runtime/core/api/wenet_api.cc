@@ -61,6 +61,26 @@ class ASRModel{
       resource_->symbol_table = resource_->unit_table;
       use_lm_symbols = false;
     }
+
+    // Optional: use ITN, here we just support language_type=kMandarinEnglish
+    std::string itn_tagger_path = wenet::JoinPath(model_dir, "zh_itn_tagger.fst");
+    std::string itn_verbalizer_path = wenet::JoinPath(model_dir, "zh_itn_verbalizer.fst");
+    if (wenet::FileExists(itn_tagger_path) && wenet::FileExists(itn_verbalizer_path)) {
+      auto postprocess_opts = std::make_shared<wenet::PostProcessOptions>();
+      postprocess_opts->itn = true;
+      auto postprocessor = std::make_shared<wenet::PostProcessor>(*postprocess_opts);
+      auto postprocess_resource = std::make_shared<wenet::PostProcessResource>();
+      auto itn_processor = std::make_shared<wetext::Processor>(itn_tagger_path, itn_verbalizer_path);
+      
+      postprocess_resource->itn_processor = itn_processor;
+      postprocessor->postprocess_resource = postprocess_resource;
+      resource_->post_processor = postprocessor;
+    }
+    else{
+      auto postprocess_opts = std::make_shared<wenet::PostProcessOptions>();
+      resource_->post_processor = std::make_shared<wenet::PostProcessor>(*postprocess_opts);
+    }
+
   }
   std::shared_ptr<wenet::DecodeResource> get_resource(){return resource_;}
 
@@ -75,14 +95,13 @@ class Recognizer {
     // FeaturePipeline init
     // Here we use frame_length=400 and frame_shift=100
     feature_config_ = std::make_shared<wenet::FeaturePipelineConfig>(80, 16000, 400, 100);
-    feature_pipeline_ =
-        std::make_shared<wenet::FeaturePipeline>(*feature_config_);
+    feature_pipeline_ = std::make_shared<wenet::FeaturePipeline>(*feature_config_);
 
     // Context config init
     context_config_ = std::make_shared<wenet::ContextConfig>();
     decode_options_ = std::make_shared<wenet::DecodeOptions>();
     decode_options_->ctc_wfst_search_opts.length_penalty = -3.0;  // -3.0 is proper
-    post_process_opts_ = std::make_shared<wenet::PostProcessOptions>();
+    //post_process_opts_ = std::make_shared<wenet::PostProcessOptions>();
   }
 
   void Reset() {
@@ -96,7 +115,7 @@ class Recognizer {
   }
 
   void InitDecoder() {
-    CHECK(decoder_ == nullptr);   //确保decoder_尚未初始化
+    CHECK(decoder_ == nullptr);   
     // Optional init context graph
     if (context_.size() > 0 ) {
       std::vector<std::string> context; 
@@ -111,14 +130,15 @@ class Recognizer {
       context_graph->BuildContextGraph(context, resource_->symbol_table, use_lm_symbols_);
       resource_->context_graph = context_graph;
     }
-    // PostProcessor
-    if (language_ == "chs") {  // TODO(Binbin Zhang): CJK(chs, jp, kr)
-      post_process_opts_->language_type = wenet::kMandarinEnglish;
-    } else {
-      post_process_opts_->language_type = wenet::kIndoEuropean;
-    }
-    resource_->post_processor =
-        std::make_shared<wenet::PostProcessor>(*post_process_opts_);
+    // // PostProcessor
+    // if (language_ == "chs") {  // TODO(Binbin Zhang): CJK(chs, jp, kr)
+    //   post_process_opts_->language_type = wenet::kMandarinEnglish;
+    // } else {
+    //   post_process_opts_->language_type = wenet::kIndoEuropean;
+    // }
+    // resource_->post_processor =
+    //     std::make_shared<wenet::PostProcessor>(*post_process_opts_);
+    
     // Init decoder
     decoder_ = std::make_shared<wenet::AsrDecoder>(feature_pipeline_, resource_,
                                                    *decode_options_);
@@ -189,7 +209,10 @@ class Recognizer {
         decoder_->Rescoring();
         UpdateResult(true);
         decoder_->ResetContinuousDecoding();
-        break;  //dujing: We should break decoding if we detect VAD's EndPoint 
+        //dujing: We should break decoding if we detect VAD's EndPoint,
+        //otherwise the result before this endpoint may be cleared.
+        //TODO: the remained feature may not be decoded? need check!
+        break;  
       } else {  // kEndBatch
         UpdateResult(false);
       }
@@ -216,7 +239,12 @@ class Recognizer {
           one["word_pieces"].append(piece);
         }
       }
-      one["sentence"] = decoder_->result()[i].sentence;
+      if (final_result && 
+          nullptr != resource_->post_processor->postprocess_resource && 
+          nullptr != resource_->post_processor->postprocess_resource->itn_processor 
+          && resource_->post_processor->opts_.itn){
+        one["itn"] = resource_->post_processor->postprocess_resource->itn_processor->normalize(decoder_->result()[i].sentence);
+      }
       obj["nbest"].append(one);
     }
     obj["vad_state"] = (int)decoder_->GetVADState();
@@ -237,6 +265,8 @@ class Recognizer {
   void set_vad_trailing_silence(const int length_in_ms) {
     decode_options_->ctc_endpoint_config.rule2.min_trailing_silence = length_in_ms;  
   }
+  // set itn with flag.
+  void set_itn(bool flag){resource_->post_processor->opts_.itn = flag; }
 
   void set_resource(std::shared_ptr<wenet::DecodeResource> resource){
     resource_ = resource;
@@ -360,8 +390,12 @@ void wenet_set_vad_trailing_silence(void* decoder, int length_in_ms) {
   recognizer->set_vad_trailing_silence(length_in_ms);
 }
 
-
 void wenet_reset_user_decoder(void* decoder){
   Recognizer* recognizer = reinterpret_cast<Recognizer*>(decoder);
   recognizer->ResetUserDecoder();
+}
+
+void wenet_set_itn(void* decoder, int flag){
+  Recognizer* recognizer = reinterpret_cast<Recognizer*>(decoder);
+  recognizer->set_itn(flag>0);
 }

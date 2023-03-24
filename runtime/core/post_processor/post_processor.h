@@ -19,6 +19,7 @@
 #include <string>
 #include <utility>
 
+#include "post_processor/processor.h"
 #include "utils/utils.h"
 
 namespace wenet {
@@ -43,10 +44,13 @@ struct PostProcessOptions {
   LanguageType language_type = kMandarinEnglish;
   // whether lowercase letters are required
   bool lowercase = true;
+  bool itn = false;
 };
 
 // TODO(xcsong): add itn/punctuation related resource
-struct PostProcessResource {};
+struct PostProcessResource {
+  std::shared_ptr<wetext::Processor> itn_processor = nullptr;
+};
 
 // Post Processor
 class PostProcessor {
@@ -61,8 +65,9 @@ class PostProcessor {
   // void InverseTN(const std::string& str);
   // void Punctuate(const std::string& str);
 
+  std::shared_ptr<wenet::PostProcessResource> postprocess_resource = nullptr;
+  PostProcessOptions opts_;
  private:
-  const PostProcessOptions opts_;
 
  public:
   WENET_DISALLOW_COPY_AND_ASSIGN(PostProcessor);

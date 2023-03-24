@@ -137,6 +137,12 @@ void wenet_set_vad_trailing_silence(void* decoder, int length_in_ms);
 */
 void wenet_reset_user_decoder(void* decoder);
 
+/** Whether to enable inverse text normalization in final results
+    disable it when flag = 0, otherwise enable
+ */
+void wenet_set_itn(void* decoder, int flag);
+
+
 
 #ifdef __cplusplus
 }

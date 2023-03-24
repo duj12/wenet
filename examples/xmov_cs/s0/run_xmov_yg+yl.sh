@@ -4,7 +4,7 @@
 
 # Use this to control how many gpu you use, It's 1-gpu training if you specify
 # just 1gpu, otherwise it's is multiple gpu training based on DDP in pytorch
-export CUDA_VISIBLE_DEVICES="2"
+export CUDA_VISIBLE_DEVICES="6"
 stage=$1 # start from 0 if you need to start from data preparation
 stop_stage=$2
 num_gpus=$(echo $CUDA_VISIBLE_DEVICES | awk -F "," '{print NF}')
@@ -27,17 +27,17 @@ data_type=raw
 num_utts_per_shard=1000
 prefetch=100
 cmvn_sampling_divisor=100  # 20 means 5% of the training data to estimate cmvn
-train_set=train_xmov+tts
-dev_set=test_xmov_inter
+train_set=train_yg+yl
+dev_set=test_yg+yl
 
-test_sets="test_xmov_inter"
+test_sets="test_yg+yl"
 
 # Optional train_config
 # 1. conf/train_transformer.yaml: Standard transformer
 # 2. conf/train_conformer.yaml: Standard conformer
 # 3. conf/train_unified_conformer.yaml: Unified dynamic chunk causal conformer
 # 4. conf/train_unified_transformer.yaml: Unified dynamic chunk transformer
-train_config=conf/train_u2++_conformer_wavaug.yaml
+train_config=conf/train_u2++_conformer_youguang.yaml
 # English modeling unit
 # Optional 1. bpe 2. char
 en_modeling_unit=bpe
@@ -45,11 +45,11 @@ dict=data/dict_$en_modeling_unit/lang_char.txt
 cmvn=false   # do not use cmvn
 debug=false
 num_workers=2
-dir=exp/u2_xmov_youling2
+dir=exp/u2_xmov_yg+yl
 checkpoint=
 
 # use average_checkpoint will get better result
-average_num=5
+average_num=10
 average_checkpoint=false
 decode_checkpoint=$dir/avg_${average_num}.pt
 #decode_modes="ctc_greedy_search ctc_prefix_beam_search
@@ -122,7 +122,7 @@ fi
 if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
   # Training
   mkdir -p $dir
-  checkpoint=exp/conformer_wavaug/44.pt   #继续通用领域模型训练
+  checkpoint=exp/conformer_wavaug/avg_10.pt   #继续通用领域模型训练
   INIT_FILE=$dir/ddp_init
   # You had better rm it manually before you start run.sh on first node.
   # rm -f $INIT_FILE # delete old one before starting
@@ -165,10 +165,7 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
       --num_workers 1 \
       $cmvn_opts \
       --pin_memory \
-      --bpe_model ${bpecode} #\
-#      --teacher_config  exp/conformer_wavaug/train.yaml \
-#      --teacher_checkpoint exp/conformer_wavaug/44.pt \
-#      --teacher_distill_weight 0.5
+      --bpe_model ${bpecode}
   } &
   done
   wait
@@ -317,11 +314,11 @@ if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
     tools/fst/make_tlg.sh data/local/lm data/local/lang data/lang_test || exit 1;
   fi
   # 7.4 Decoding with runtime
-  test_sets="test_xmov_inter test_aishell test_net test_meeting test_conv test_libriclean  test_giga test_talcs test_htrs462 test_sjtcs test_xmov "
-  test_sets="tmp "
+  test_sets="test_yg test_xmov_inter test_aishell test_net test_meeting test_conv test_libriclean  test_giga test_talcs test_htrs462 test_sjtcs test_xmov "
+  #test_sets="test_xmov_inter test_conv "
 
   model_suffix= #"_quant"
-  CUDA_VISIBLE_DEVICES="6"
+  CUDA_VISIBLE_DEVICES="7"
   num_gpus=$(echo $CUDA_VISIBLE_DEVICES | awk -F "," '{print NF}')
   thread_num=1
   warmup=0
@@ -334,7 +331,7 @@ if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
   use_lm=0
   length_penalty=-3.0
   lm=lm_250G_3gram+YouLing_3gram_chars
-  context_path="data/hot_words.txt"
+  context_path= #"data/hot_words.txt"
   if [ ! -z $context_path ]; then
     decode_suffix="_with_context"
     decode_opts="--context_path $context_path --context_score 3 "$decode_opts

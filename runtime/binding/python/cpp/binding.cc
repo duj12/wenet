@@ -37,6 +37,7 @@ PYBIND11_MODULE(_wenet, m) {
   m.def("wenet_set_log_level", &wenet_set_log_level, "set log level");
   m.def("wenet_set_nbest", &wenet_set_nbest, "set nbest");
   m.def("wenet_set_timestamp", &wenet_set_timestamp, "set timestamp flag");
+  m.def("wenet_set_itn", &wenet_set_itn, "set inverse text normalization flag");
   m.def("wenet_add_context", &wenet_add_context, "add one context word");
   m.def("wenet_set_context_score", &wenet_set_context_score,
         "set context bonus score");
