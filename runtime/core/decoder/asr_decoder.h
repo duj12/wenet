@@ -92,7 +92,8 @@ enum DecodeState {
 struct DecodeResource {
   std::shared_ptr<AsrModel> model = nullptr;
   std::shared_ptr<fst::SymbolTable> symbol_table = nullptr;
-  std::shared_ptr<fst::Fst<fst::StdArc>> fst = nullptr;
+  //std::shared_ptr<fst::Fst<fst::StdArc>> fst = nullptr;
+  std::shared_ptr<fst::VectorFst<fst::StdArc>> fst = nullptr;
   std::shared_ptr<fst::SymbolTable> unit_table = nullptr;
   std::shared_ptr<ContextGraph> context_graph = nullptr;
   std::shared_ptr<PostProcessor> post_processor = nullptr;
@@ -133,7 +134,8 @@ class AsrDecoder {
   // to public
   std::unique_ptr<SearchInterface> searcher_;
   std::unique_ptr<CtcEndpoint> ctc_endpointer_;
-  std::shared_ptr<fst::Fst<fst::StdArc>> fst_ = nullptr;
+  //std::shared_ptr<fst::Fst<fst::StdArc>> fst_ = nullptr;
+  std::shared_ptr<fst::VectorFst<fst::StdArc>> fst_ = nullptr;
 
  private:
   DecodeState AdvanceDecoding(bool block = true);

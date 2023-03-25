@@ -193,7 +193,7 @@ if __name__ == "__main__":
     ACC_test = False
     STOP_test = False
     if ACC_test:
-        test_set='test_xmov_youguang'
+        test_set='test_xmov_youling'
         print("下面先测试模型解码准确率...")
         wav_root = "../../resource/WAV"
         wav_scp = f"../../resource/WAV/{test_set}.scp0"

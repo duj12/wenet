@@ -49,8 +49,10 @@ class ASRModel{
 
     std::string fst_path = wenet::JoinPath(model_dir, "TLG.fst");
     if (wenet::FileExists(fst_path)) {  // With LM
-      resource_->fst = std::shared_ptr<fst::Fst<fst::StdArc>>(
-          fst::Fst<fst::StdArc>::Read(fst_path));
+      // resource_->fst = std::shared_ptr<fst::Fst<fst::StdArc>>(
+      //     fst::Fst<fst::StdArc>::Read(fst_path));
+      resource_->fst = std::shared_ptr<fst::VectorFst<fst::StdArc>>(
+          fst::VectorFst<fst::StdArc>::Read(fst_path));
 
       std::string symbol_path = wenet::JoinPath(model_dir, "words.txt");
       CHECK(wenet::FileExists(symbol_path));

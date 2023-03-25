@@ -32,8 +32,8 @@ context_path=
 context_score=3
 
 # long wave decoding
-min_trailing_silence=500
-continuous_decoding=true
+min_trailing_silence=1000
+continuous_decoding=false
 
 . tools/parse_options.sh || exit 1;
 if [ $# != 5 ]; then

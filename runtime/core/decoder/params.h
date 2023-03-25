@@ -199,8 +199,8 @@ std::shared_ptr<DecodeResource> InitDecodeResourceFromFlags() {
   if (!FLAGS_fst_path.empty()) {  // With LM
     CHECK(!FLAGS_dict_path.empty());
     LOG(INFO) << "Reading fst " << FLAGS_fst_path;
-    auto fst = std::shared_ptr<fst::Fst<fst::StdArc>>(
-        fst::Fst<fst::StdArc>::Read(FLAGS_fst_path));
+    auto fst = std::shared_ptr<fst::VectorFst<fst::StdArc>>(
+        fst::VectorFst<fst::StdArc>::Read(FLAGS_fst_path));
     CHECK(fst != nullptr);
     resource->fst = fst;
 
