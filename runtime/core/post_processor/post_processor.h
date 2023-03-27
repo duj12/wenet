@@ -61,6 +61,7 @@ class PostProcessor {
   std::string Process(const std::string& str, bool finish);
   // process spaces according to configurations
   std::string ProcessSpace(const std::string& str);
+  std::string ProcessSymbols(const std::string& str);
   // TODO(xcsong): add itn/punctuation
   // void InverseTN(const std::string& str);
   // void Punctuate(const std::string& str);
