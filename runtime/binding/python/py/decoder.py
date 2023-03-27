@@ -83,7 +83,7 @@ class Decoder:
         _wenet.wenet_free(self.d)
 
     def __version__(self):
-        return "1.3.0"
+        return "1.3.1"
 
     def set_log_level(self, level):
         """
