@@ -11,15 +11,16 @@ domain_text_list=data/train_yl+tts/lm.list
 merged_lm_name=lm_250G_3gram+YouLing1_3gram_chars
 merged_ngram=data/${merged_lm_name}/local/lm/lm.arpa
 
-dict=data/lm_asrtext_6gram_chars/local/dict/word.vocab
+dict=data/$domain_lm_name/local/dict/word.vocab
 dev_text=data/lm_dev.txt
 
 general_ngram_prune=1e-8
 domain_ngram_prune=1e-13
 merge_ngram_prune=1e-13
 
-general_order=3
-domain_order=3
+general_order=6
+domain_order=6
+merged_order=3
 
 merged_dir=`dirname $merged_ngram`
 merged_name=`basename $merged_ngram`
@@ -47,7 +48,7 @@ if [ $stage -le -1 ]; then
   if [ ! -f $domain_ngram ] && [ -f $domain_text_list ] ; then
     echo "-2. make a domain ngram. with $domain_text_list, to data/$domain_lm_name"
     ./run_ngram.sh --lm_corpus_paths $domain_text_list --order $domain_order --prune $domain_ngram_prune \
-      --chinese_unit chars  --LM_name $domain_lm_name  0  2
+      --chinese_unit chars  --LM_name $domain_lm_name  1  2
     dict_path=data/$domain_lm_name/local/dict
   fi
 
@@ -64,20 +65,23 @@ if [ $stage -le 1 ]; then
 echo "1. merge the ngrams."
 lambda=`tail -n 1 $merged_dir/best-mix.ppl | awk '{print $NF}' | awk -F")" '{print $1}'`
 echo "best mix lambda = $lambda"
-ngram -debug 1 -order $domain_order -lm $domain_ngram -lambda $lambda -mix-lm $general_ngram \
+ngram -debug 1 -order $merged_order -lm $domain_ngram -lambda $lambda -mix-lm $general_ngram \
     -write-lm $merged_ngram -vocab $dict -limit-vocab
 fi
 
 
 if [ $stage -le 2 ]; then
   echo "2. Eval the merged ngram"
-if [ $merge_ngram_prune -gt 0 ] ; then
+if [ ! -z $merge_ngram_prune ] ; then
   echo  "prune the merged ngram with $merge_ngram_prune, to $merged_dir/prune${merge_ngram_prune}_$merged_name "
-  ngram -debug 1 -lm $merged_ngram -prune $merge_ngram_prune -write-lm  $merged_dir/prune${merge_ngram_prune}_$merged_name
-  ngram -debug 2 -order $domain_order -lm $merged_dir/prune${merge_ngram_prune}_$merged_name -ppl $dev_text > $merged_dir/lm_merge.ppl
-else
-  ngram -debug 2 -order $domain_order -lm $merged_ngram -ppl $dev_text > $merged_dir/lm_merge.ppl
+  ngram -debug 1 -lm $merged_ngram -order $merged_order -prune $merge_ngram_prune \
+      -write-lm  $merged_dir/prune${merge_ngram_prune}_$merged_name
+  mv $merged_ngram ${merged_ngram}0
+  mv $merged_dir/prune${merge_ngram_prune}_$merged_name $merged_ngram
 fi
+
+  ngram -debug 2 -order $merged_order -lm $merged_ngram -ppl $dev_text > $merged_dir/lm_merge.ppl
+
 fi
 
 if [ ${stage} -le 3 ] && [ 1 -eq 1 ]; then

@@ -4,6 +4,7 @@ import json
 
 LOG_LEVEL=0    # 设置为1，2可以显示更多log
 PRINT_JSON_RES=False    #打印每次decoder.decode输出的json串
+ITN = True
 
 def process_one_thread(t_number,
                        model, wav_file,
@@ -85,7 +86,7 @@ def process_one_thread(t_number,
     print(f"Thread {t_number}： 开启时间戳")
     decoder.enable_timestamp(True)
     print(f"Thread {t_number}： 开启文本反正则")
-    decoder.set_itn(True)
+    decoder.set_itn(ITN)
 
     # In demo we read wave in non-streaming fashion.
     with wave.open(wav_file, 'rb') as fin:
@@ -105,6 +106,8 @@ def process_one_thread(t_number,
         if result and result["type"] == "final_result" and len(result['nbest']) > 0:
             print(f"Thread {t_number}：", result["nbest"][0]["sentence"])
             print(ans)
+            if ITN:
+                print(f"Thread {t_number}：", "itn: ", result["nbest"][0]["itn"])
 
     print(f"Thread {t_number}： 解码结束")
 
@@ -190,7 +193,7 @@ if __name__ == "__main__":
     model = ASRModel("../../resource/ASR", num_thread=4)
     print("创建模型，模型加载已完毕")
 
-    ACC_test = False
+    ACC_test = True
     STOP_test = False
     if ACC_test:
         test_set='test_xmov_youling'
@@ -224,7 +227,7 @@ if __name__ == "__main__":
     print("下面测试多线程加载不同热词...")
     t_count = 1
     case_count = 2
-    wav_files = ["../../resource/WAV/10second_sil.wav",
+    wav_files = ["../../resource/WAV/test_itn.wav",
                  "../../resource/WAV/10second_sil.wav"]
     user_context_lists = [["小黄车", "抓紧上车", "三二一上链接", "魔珐", "魔块"], ["魔法", "模块"]]
     vad_silences = [500, 2500]

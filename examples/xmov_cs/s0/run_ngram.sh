@@ -42,6 +42,7 @@ echo "LM_name is $LM_name"
 dict_path=data/$LM_name/local/dict
 mkdir -p $dict_path
 cp $unit_file $dict_path/units.txt
+additional_vocab=$dict_path/vocab.txt     # the dict with domain words
 converted_lexicon=$dict_path/lexicon.txt  #the converted dict
 word_vocab=$dict_path/word.vocab
 
@@ -67,7 +68,7 @@ if [ ${stage} -le 0 ] && [ ${stop_stage} -ge 0 ] ; then
         read -u6
         {
         new_text_path=$text_path.$chinese_unit
-        local/split_${chinese_unit}.py $text_path $new_text_path $original_vocab
+        local/split_${chinese_unit}.py $text_path $new_text_path $original_vocab >&2 #将分词产生的日志定向到标准错误
         echo >&6 # 当进程结束以后，再向FD6中加上一个回车符，即补上了read -u6减去的那个
         echo $new_text_path
         } &
@@ -102,18 +103,27 @@ if [ ${stage} -le 1 ] && [ ${stop_stage} -ge 1 ]; then
   echo "1. Prepare dict: convert each word(for chinese we use chars/words) into bpe units."
   echo
   chinese_bpe_is_char=1    # the bpe model is trained with chinese chars and english bpe
+  add_oov=true
+
+  if [ $add_oov ]; then
+      python local/add_oov.py $lm_corpus_paths $additional_vocab $original_vocab
+  else
+      cp $original_vocab $additional_vocab
+  fi
+
   if [ $chinese_unit = "chars" ]; then
     chinese_bpe_is_char=0  # 设为0确保将除了bpe_vocab中的单个汉字之外的词排除出词表之外
   fi
-  tools/fst/prepare_dict.py $unit_file $original_lexicon \
+  tools/fst/prepare_dict.py $unit_file $additional_vocab \
     $converted_lexicon ${bpecode} ${chinese_bpe_is_char}
+  # the $word_vocab is used to construct the LM
+  cut -d' ' -f1 $converted_lexicon > $word_vocab
 fi
 
 if [ ${stage} -le 2 ] && [ ${stop_stage} -ge 2 ]; then
   echo
   echo "2. Train lm, in arpa format, may take such a long time..."
   echo
-  cut -d' ' -f1 $converted_lexicon > $word_vocab
   local/train_large_lm.sh $lm_corpus_paths $word_vocab $order $prune \
   $lm_path $thread_num  $tmp_path
   #ppl test
