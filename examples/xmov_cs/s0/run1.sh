@@ -4,10 +4,10 @@
 
 # Use this to control how many gpu you use, It's 1-gpu training if you specify
 # just 1gpu, otherwise it's is multiple gpu training based on DDP in pytorch
-export CUDA_VISIBLE_DEVICES="0,1,2,3"  #"4,5,6,7"
+export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
 stage=$1 # start from 0 if you need to start from data preparation
 stop_stage=$2
-
+num_gpus=$(echo $CUDA_VISIBLE_DEVICES | awk -F "," '{print NF}')
 # The NCCL_SOCKET_IFNAME variable specifies which IP interface to use for nccl
 # communication. More details can be found in
 # https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/env.html
@@ -30,7 +30,7 @@ cmvn_sampling_divisor=100  # 20 means 5% of the training data to estimate cmvn
 train_set=train
 dev_set=dev
 
-test_sets="test_aishell test_net test_meeting test_libriclean  test_giga test_talcs test_htrs462 test_sjtcs test_conv test_xmov test_xmov_inter"
+test_sets="test_aishell test_net test_meeting test_conv test_libriclean  test_giga test_talcs test_htrs462 test_sjtcs test_xmov test_xmov_inter"
 
 # Optional train_config
 # 1. conf/train_transformer.yaml: Standard transformer
@@ -42,11 +42,11 @@ train_config=conf/train_u2++_conformer_wavaug1.yaml
 # Optional 1. bpe 2. char
 en_modeling_unit=bpe
 dict=data/dict_$en_modeling_unit/lang_char.txt
-cmvn=false   # do not use cmvn
+cmvn=true
 debug=false
 num_workers=2
 dir=exp/conformer_wavaug1
-checkpoint=
+checkpoint=  #$dir/steps_6000.pt
 
 # use average_checkpoint will get better result
 average_num=10
@@ -55,14 +55,7 @@ decode_checkpoint=$dir/avg_${average_num}.pt
 #decode_modes="ctc_greedy_search ctc_prefix_beam_search
 #              attention attention_rescoring"
 decode_modes="attention_rescoring "
-context_path=""  #"data/hot_words.txt"  #"data/hot_words_xmov.txt"
-if [ ! -z $context_path ]; then
-  decode_suffix="_with_context"
-  decode_opts="--context_path $context_path --context_score 3 "
-else
-  decode_suffix=""
-  decode_opts=""
-fi
+
 
 . tools/parse_options.sh || exit 1;
 
@@ -86,7 +79,7 @@ if [ ${stage} -le 2 ] && [ ${stop_stage} -ge 2 ]; then
     shuf -n $sampling_size data/$train_set/wav.scp \
       > data/$train_set/wav.scp.sampled
     python3 tools/compute_cmvn_stats.py \
-    --num_workers 16 \
+    --num_workers 32 \
     --train_config $train_config \
     --in_scp data/$train_set/wav.scp.sampled \
     --out_cmvn data/$train_set/global_cmvn \
@@ -129,7 +122,6 @@ fi
 if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
   # Training
   mkdir -p $dir
-  checkpoint=$dir/3.pt
   INIT_FILE=$dir/ddp_init
   # You had better rm it manually before you start run.sh on first node.
   # rm -f $INIT_FILE # delete old one before starting
@@ -137,7 +129,7 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
   echo "$0: init method is $init_method"
   num_gpus=$(echo $CUDA_VISIBLE_DEVICES | awk -F "," '{print NF}')
   # Use "nccl" if it works, otherwise use "gloo"
-  dist_backend="gloo"
+  dist_backend="nccl"
   # The total number of processes/gpus, so that the master knows
   # how many workers to wait for.
   # More details about ddp can be found in
@@ -145,7 +137,8 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
   world_size=`expr $num_gpus \* $num_nodes`
   echo "total gpus is: $world_size"
   cmvn_opts=
-  $cmvn && cp ${feat_dir}_${en_modeling_unit}/$train_set/global_cmvn $dir
+  #$cmvn && cp ${feat_dir}_${en_modeling_unit}/$train_set/global_cmvn $dir
+  $cmvn && cp data/$train_set/global_cmvn $dir
   $cmvn && cmvn_opts="--cmvn ${dir}/global_cmvn"
   # train.py will write $train_config to $dir/train.yaml with model input
   # and output dimension, train.yaml will be used for inference or model
@@ -169,7 +162,7 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
       --ddp.world_size $world_size \
       --ddp.rank $rank \
       --ddp.dist_backend $dist_backend \
-      --num_workers 1 \
+      --num_workers $num_workers \
       $cmvn_opts \
       --pin_memory \
       --bpe_model ${bpecode}
@@ -178,7 +171,6 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
   wait
 fi
 
-if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
   # Test model, please specify the model you want to test by --checkpoint
   if [ ${average_checkpoint} == true ]; then
     decode_checkpoint=$dir/avg_${average_num}.pt
@@ -189,20 +181,33 @@ if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
       --num ${average_num} \
       --val_best
   fi
+if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
+
   # Specify decoding_chunk_size if it's a unified dynamic chunk trained model
   # -1 for full chunk
   decoding_chunk_size=16
   ctc_weight=0.5
   idx=0
   reverse_weight=0.0
-  decode_checkpoint=$dir/steps_68000.pt
-  nj=16
-  test_sets="test_aishell "
+  nnlm_file=data/lm_transformer/valid.loss.ave_10best.pth
+  lm_firstpass_weight=0.3
+  lm_secondpass_weight=0.5
+  if [ ! -z $nnlm_file ] ; then
+    decode_opts="--lm_file $nnlm_file --lm_firstpass_weight $lm_firstpass_weight --lm_secondpass_weight $lm_secondpass_weight "
+    decode_suffix="_nnlm_1st${lm_firstpass_weight}_2nd${lm_secondpass_weight}"
+  else
+    decode_opts=
+    decode_suffix=
+  fi
+  nj=1
+  CUDA_VISIBLE_DEVICES=""
+  num_gpus=$(echo $CUDA_VISIBLE_DEVICES | awk -F "," '{print NF}')
+  test_sets="debug "
   for test in ${test_sets}; do
 
   for mode in ${decode_modes}; do
   {
-    test_dir="$dir/test_${mode}${decoding_chunk_size:+_chunk$decoding_chunk_size}/${test}"
+    test_dir="$dir/test_${mode}${decoding_chunk_size:+_chunk$decoding_chunk_size}${decode_suffix}/${test}"
     mkdir -p $test_dir
     mkdir -p $test_dir/split${nj}
 
@@ -214,11 +219,11 @@ if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
     scp=${feat_dir}_${en_modeling_unit}/${test}/data.list
     tools/data/split_scp.pl ${scp} ${split_scps}
 
-    num_gpus=$(echo $CUDA_VISIBLE_DEVICES | awk -F "," '{print NF}')
     # Step 2. Parallel decoding
     for n in $(seq ${nj}); do
     {
     gpu_id=$(echo $CUDA_VISIBLE_DEVICES | cut -d',' -f$[$idx+1])
+
     if [[ $num_gpus -eq 0 ]]; then gpu_id=-1 ; fi
     python wenet/bin/recognize.py --gpu $gpu_id \
       --mode $mode \
@@ -233,7 +238,7 @@ if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
       --ctc_weight $ctc_weight \
       --reverse_weight $reverse_weight \
       ${decoding_chunk_size:+--decoding_chunk_size $decoding_chunk_size} \
-      --bpe_model ${bpecode} \
+      --bpe_model ${bpecode} $decode_opts \
       --result_file $test_dir/split${nj}/${n}.text_${en_modeling_unit} \
       &> ${test_dir}/split${nj}/${n}.log
     } &
@@ -309,67 +314,87 @@ if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
     tools/fst/make_tlg.sh data/local/lm data/local/lang data/lang_test || exit 1;
   fi
   # 7.4 Decoding with runtime
+  test_sets="test_aishell test_net test_meeting test_conv test_libriclean  test_giga test_talcs test_htrs462 test_sjtcs test_xmov test_xmov_inter"
+  test_sets="test_xmov_inter "
 
-  for test in ${test_sets}; do
-  use_lm=0
-  if [ $use_lm -eq 1 ]; then
-  echo "decode with TLG.fst.."
-  chunk_size=16
-  ./tools/decode.sh --nj 8  --frame_shift 100 \
-    --beam 15.0 --lattice_beam 7.5 --max_active 7000 \
-    --blank_skip_thresh 0.98 --ctc_weight 0.5 --rescoring_weight 1.0 \
-    --chunk_size $chunk_size $decode_opts \
-    --fst_path data/lang_test/TLG.fst \
-    --dict_path data/lang_test/words.txt \
-    data/${test}/wav.scp data/${test}/text $dir/final.zip \
-    $dict "$dir/lm_with_runtime_${chunk_size}${decode_suffix}/${test}"
-  # Please see $dir/lm_with_runtime for wer
-  elif [ $use_lm -eq 0 ]; then
-  echo "decode without TLG.fst.."
-  chunk_size=16
-  ./tools/decode.sh --nj 8 --frame_shift 100 \
-    --beam 15.0 --lattice_beam 7.5 --max_active 7000 \
-    --blank_skip_thresh 0.98 --ctc_weight 0.5  --rescoring_weight 1.0 \
-    --chunk_size $chunk_size $decode_opts \
-    data/${test}/wav.scp data/${test}/text $dir/final.zip \
-    $dict  "$dir/runtime_${chunk_size}${decode_suffix}/${test}"
-  # Please see $dir/runtime for wer
-  fi
-  done
-fi
-
-
-if [ ${stage} -le 8 ] && [ ${stop_stage} -ge 8 ]; then
-  test_sets="test_aishell test_net test_meeting test_libriclean  test_giga test_talcs test_htrs462 test_sjtcs test_conv test_xmov test_xmov_inter"
-  length_penalty=-3.0
-  lm=lm_asrtext_3gram_chars
-  for test in ${test_sets}; do
+  model_suffix= #"_quant"
+  CUDA_VISIBLE_DEVICES="3"
+  num_gpus=$(echo $CUDA_VISIBLE_DEVICES | awk -F "," '{print NF}')
+  thread_num=1
+  warmup=1
+  nj=8 #$num_gpus
   use_lm=1
+  length_penalty=-3.0
+  lm=lm_250G_4gram+asrtext_6gram_chars
+  context_path="data/hot_words.txt"
+  reverse_weight=0.3
+  chunk_size=16
+  if [ ! -z $CUDA_VISIBLE_DEVICES ]; then
+    decode_opts="--gpu_devices $CUDA_VISIBLE_DEVICES "$decode_opts
+  else
+    decode_opts=""$decode_opts
+  fi
+  if [ ! -z $context_path ]; then
+    decode_suffix="_with_context"
+    decode_opts="--context_path $context_path --context_score 3 "$decode_opts
+  else
+    decode_suffix=""
+    decode_opts=""$decode_opts
+  fi
+  for test in ${test_sets}; do
+
   if [ $use_lm -eq 1 ]; then
   echo "decode with TLG.fst.."
   lang_test=data/$lm/lang_test  # the path of TLG.fst and words.txt
-  chunk_size=16
-  ./tools/decode.sh --nj 8  --frame_shift 100 \
-    --beam 15.0 --lattice_beam 7.5 --max_active 7000 \
+  ./tools/decode.sh --nj $nj --thread_per_device $thread_num --warmup $warmup \
+     --frame_shift 100 --beam 15.0 --lattice_beam 7.5 --max_active 7000 \
     --blank_skip_thresh 0.98 --ctc_weight 0.5 --rescoring_weight 1.0 \
-    --chunk_size $chunk_size $decode_opts --length_penalty ${length_penalty} \
-    --fst_path $lang_test/TLG.fst \
+    --reverse_weight $reverse_weight --chunk_size $chunk_size $decode_opts\
+    --fst_path $lang_test/TLG.fst  --length_penalty ${length_penalty} \
     --dict_path $lang_test/words.txt \
-    data/${test}/wav.scp data/${test}/text $dir/final.zip \
-    $dict "$dir/${lm}_with_runtime_${chunk_size}_penalty${length_penalty}${decode_suffix}/${test}"
+    data/${test}/wav.scp data/${test}/text $dir/final${model_suffix}.zip \
+    $dict "$dir/${lm}_with_runtime_${chunk_size}_penalty${length_penalty}_rw${reverse_weight}${decode_suffix}${model_suffix}/${test}"
   # Please see $dir/lm_with_runtime for wer
   elif [ $use_lm -eq 0 ]; then
   echo "decode without TLG.fst.."
-  chunk_size=16
-  ./tools/decode.sh --nj 8 --frame_shift 100 \
-    --beam 15.0 --lattice_beam 7.5 --max_active 7000 \
+  ./tools/decode.sh --nj $nj --thread_per_device $thread_num --warmup $warmup \
+    --frame_shift 100 --beam 15.0 --lattice_beam 7.5 --max_active 7000 \
     --blank_skip_thresh 0.98 --ctc_weight 0.5  --rescoring_weight 1.0 \
-    --chunk_size $chunk_size $decode_opts \
-    data/${test}/wav.scp data/${test}/text $dir/final.zip \
-    $dict  "$dir/runtime_${chunk_size}${decode_suffix}/${test}"
+    --reverse_weight $reverse_weight --chunk_size $chunk_size $decode_opts \
+    data/${test}/wav.scp data/${test}/text $dir/final${model_suffix}.zip \
+    $dict  "$dir/runtime_${chunk_size}_rw${reverse_weight}${decode_suffix}${model_suffix}/${test}"
   # Please see $dir/runtime for wer
   fi
 
   done
+
+fi
+
+
+# export onnx gpu model
+if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
+onnx_model_dir=$dir/onnx_gpu_model
+mkdir -p $onnx_model_dir
+python3 wenet/bin/export_onnx_gpu.py \
+  --config=$dir/train.yaml \
+  --checkpoint=$dir/avg_10.pt \
+  --cmvn_file=none --ctc_weight=0.5 \
+  --output_onnx_dir=$onnx_model_dir \
+  --fp16 --streaming
+cp $dict $dir/train.yaml $onnx_model_dir/
+
+fi
+
+# export onnx cpu model
+if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
+onnx_model_dir=$dir/onnx_cpu_model
+mkdir -p $onnx_model_dir
+python3 wenet/bin/export_onnx_cpu.py \
+  --config=$dir/train.yaml \
+  --checkpoint=$dir/avg_10.pt \
+  --chunk_size 16 \
+  --output_dir $onnx_model_dir \
+  --num_decoding_left_chunks -1
+
 
 fi

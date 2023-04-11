@@ -5,14 +5,14 @@
 
 # Use this to control how many gpu you use, It's 1-gpu training if you specify
 # just 1gpu, otherwise it's is multiple gpu training based on DDP in pytorch
-export CUDA_VISIBLE_DEVICES="3"
+export CUDA_VISIBLE_DEVICES="7"
 # The NCCL_SOCKET_IFNAME variable specifies which IP interface to use for nccl
 # communication. More details can be found in
 # https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/env.html
 # export NCCL_SOCKET_IFNAME=ens4f1
 export NCCL_DEBUG=INFO
-stage=7 # start from 0 if you need to start from data preparation
-stop_stage=7
+stage=8 # start from 0 if you need to start from data preparation
+stop_stage=8
 
 # The num of machines(nodes) for multi-machine training, 1 is for one machine.
 # NFS is required if num_nodes > 1.
@@ -282,11 +282,11 @@ if [ ${stage} -le 8 ] && [ ${stop_stage} -ge 8 ]; then
   lm_scale=0.7
   decoder_scale=0.1
   r_decoder_scale=0.7
-  for mode in hlg_onebest hlg_rescore; do
+  for mode in  hlg_rescore; do
   {
     test_dir=$dir/test_${mode}
     mkdir -p $test_dir
-    python wenet/bin/recognize.py --gpu 0 \
+    python wenet/bin/recognize.py --gpu 7 \
       --mode $mode \
       --config $dir/train.yaml \
       --data_type $data_type \

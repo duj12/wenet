@@ -320,8 +320,8 @@ if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
   test_sets="test_xmov_inter test_aishell test_net test_meeting test_conv test_libriclean  test_giga test_talcs test_htrs462 test_sjtcs test_xmov "
   #test_sets=" "
 
-  model_suffix=15 #"_quant"
-  CUDA_VISIBLE_DEVICES="6"
+  model_suffix= #"_quant"
+  CUDA_VISIBLE_DEVICES="7"
   num_gpus=$(echo $CUDA_VISIBLE_DEVICES | awk -F "," '{print NF}')
   thread_num=1
   warmup=0
@@ -331,9 +331,9 @@ if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
   else
     decode_opts=""$decode_opts
   fi
-  use_lm=0
+  use_lm=1
   length_penalty=-3.0
-  lm=lm_250G_3gram+YouLing_3gram_chars
+  lm=lm_250G_3gram+YouLing2_3gram_chars
   context_path= #"data/hot_words_yl.txt"
   if [ ! -z $context_path ]; then
     decode_suffix="_with_context"

@@ -45,7 +45,9 @@ class CollateFunc(object):
                     frame_offset=start_frame)
             else:
                 waveform, sample_rate = torchaudio.load(item[1])
-
+            if waveform.size(1) <= 400:
+                print(f"Compute CMVN states: wav in {wav_path} is shorter than 400, jumped.")
+                continue
             waveform = waveform * (1 << 15)
             if self.resample_rate != 0 and self.resample_rate != sample_rate:
                 resample_rate = self.resample_rate
