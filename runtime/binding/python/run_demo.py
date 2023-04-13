@@ -2,7 +2,7 @@ import wave
 from wenetruntime.decoder import ASRModel, Decoder
 import json
 
-LOG_LEVEL=0    # 设置为1，2可以显示更多log
+LOG_LEVEL=2    # 设置为1，2可以显示更多log
 PRINT_JSON_RES=False    #打印每次decoder.decode输出的json串
 ITN = True
 
@@ -72,7 +72,7 @@ def process_one_thread(t_number,
     print(f"Thread {t_number}： 加载私有热词")
     # 此时decoder已经加载了common_context_list, 如果需要设置用户自定义list，reset一下。
     decoder.reset_user_context(user_context_list)
-    decoder.set_context_score(5.0)   # 设置热词分数
+    decoder.set_context_score(3.0)   # 设置热词分数
 
     print(f"Thread {t_number}： 设定VAD静音参数")
     # Decoder已经设定好vad_silence_length, 但是如果有新用户要更改，直接再set一下。
@@ -94,8 +94,9 @@ def process_one_thread(t_number,
         wav = fin.readframes(fin.getnframes())
 
     print(f"Thread {t_number}： 开始解码...")
-    # We suppose the wav is 16k, 16bits, and decode every 0.5 seconds
-    interval = int(0.5 * 16000) * 2
+    # We suppose the wav is 16k, 16bits, and decode every 0.3 seconds
+    # In the asr server environment, the decode chunk is fixed to 0.3s.
+    interval = int(0.3 * 16000) * 2
     for i in range(0, len(wav), interval):
         last = False if i + interval < len(wav) else True
         chunk_wav = wav[i: min(i + interval, len(wav))]
@@ -105,7 +106,6 @@ def process_one_thread(t_number,
         result = json.loads(ans) if len(ans) > 0 else None
         if result and result["type"] == "final_result" and len(result['nbest']) > 0:
             print(f"Thread {t_number}：", result["nbest"][0]["sentence"])
-            print(ans)
             if ITN:
                 print(f"Thread {t_number}：", "itn: ", result["nbest"][0]["itn"])
 
@@ -193,7 +193,7 @@ if __name__ == "__main__":
     model = ASRModel("../../resource/ASR", num_thread=4)
     print("创建模型，模型加载已完毕")
 
-    ACC_test = True
+    ACC_test = False
     STOP_test = False
     if ACC_test:
         test_set='test_xmov_youling'
@@ -227,10 +227,10 @@ if __name__ == "__main__":
     print("下面测试多线程加载不同热词...")
     t_count = 1
     case_count = 2
-    wav_files = ["../../resource/WAV/test_itn.wav",
+    wav_files = ["../../resource/WAV/vad_debug/test2_1000ms.wav",
                  "../../resource/WAV/10second_sil.wav"]
     user_context_lists = [["小黄车", "抓紧上车", "三二一上链接", "魔珐", "魔块"], ["魔法", "模块"]]
-    vad_silences = [500, 2500]
+    vad_silences = [1000, 2500]
     itn = [True, False]   #设定是否开启
     time_stamp = [True, False]
     """
@@ -238,41 +238,48 @@ if __name__ == "__main__":
     VAD静音参数为500ms和2500ms。可根据输出结果查看每个进程/线程的情况。
     """
 
-    '''
-    多进程示例
-    '''
-    # from multiprocessing import Process
-    # process_list = []
-    # for i in range(t_count):
-    #     p = Process(target=process_one_thread, args=(i, model, wav_files[i%case_count],
-    #                                common_context_list,
-    #                                user_context_lists[i%case_count],
-    #                                vad_silences[i%case_count])  # 实例化进程对象
-    #     p.start()
-    #     process_list.append(p)
-    #
-    # for i in process_list:
-    #     p.join()
 
-    '''
-    多线程示例
-    '''
-    import threading
-    threads = []
-    for i in range(t_count):
-        t = threading.Thread(target=process_one_thread,
-                             args=(i, model, wav_files[i%case_count],
-                                   common_context_list,
-                                   user_context_lists[i%case_count],
-                                   vad_silences[i%case_count]))
-        threads.append(t)
+    if t_count == 1:
+        process_one_thread(0, model, wav_files[0 % case_count],
+                common_context_list,
+                user_context_lists[0 % case_count],
+                vad_silences[0 % case_count])
+    else:
+        '''
+        多进程示例
+        '''
+        # from multiprocessing import Process
+        # process_list = []
+        # for i in range(t_count):
+        #     p = Process(target=process_one_thread, args=(i, model, wav_files[i%case_count],
+        #                                common_context_list,
+        #                                user_context_lists[i%case_count],
+        #                                vad_silences[i%case_count])  # 实例化进程对象
+        #     p.start()
+        #     process_list.append(p)
+        #
+        # for i in process_list:
+        #     p.join()
 
-    for i in range(t_count):
-        threads[i].start()
-        """
-        如果多个线程共享同一个Decoder对象(包含线程不安全的成员)，那么必须加锁。
-        将Model和Decoder分开，Decoder为每个线程私有，那么不需要加锁就可以实现多个线程同时流式识别。
-        """
-        #threads[i].join()
+        '''
+        多线程示例
+        '''
+        import threading
+        threads = []
+        for i in range(t_count):
+            t = threading.Thread(target=process_one_thread,
+                                 args=(i, model, wav_files[i%case_count],
+                                       common_context_list,
+                                       user_context_lists[i%case_count],
+                                       vad_silences[i%case_count]))
+            threads.append(t)
+
+        for i in range(t_count):
+            threads[i].start()
+            """
+            如果多个线程共享同一个Decoder对象(包含线程不安全的成员)，那么必须加锁。
+            将Model和Decoder分开，Decoder为每个线程私有，那么不需要加锁就可以实现多个线程同时流式识别。
+            """
+            #threads[i].join()
 
 

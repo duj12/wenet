@@ -1,7 +1,18 @@
 ## 使用说明
     
 
-搭建环境，下载英伟达的资源可能会花费一些时间。如果遇到pip下载出错，可以考虑切换源重新下载
+搭建环境，下载英伟达的资源可能会花费一些时间。
+
+拉取nvidia的triton-server镜像需要先在 [NGC](https://catalog.ngc.nvidia.com/) 进行注册, 然后获取密钥(用户下拉菜单-Setup-GetAPIKey-GenerateAPIKey)，然后进行认证：
+```shell
+docker login nvcr.io
+
+Username: $oauthtoken
+Password: <Your Key>
+```
+然后可以正常拉取nvidia的镜像。
+
+如果遇到pip下载出错，可以考虑切换源重新下载
 ```shell
 docker build --rm .  -f Dockerfile/Dockerfile.server -t wenet_server:latest --network host
 ```   
@@ -20,6 +31,12 @@ docker run --rm --gpus '"device=0"' -it \
         
 bash /workspace/scripts/convert_start_server.sh
 ```
+如果遇到启动镜像失败，或者运行convert_start_server.sh失败，需要检查相关的报错信息，大概率是英伟达镜像自身的问题，建议直接拉取镜像维护者提供的稳定版本镜像：
+```shell
+docker pull soar96/triton-wenet:22.12
+```
+然后重新启动镜像，用soar96/triton-wenet:22.12替换上述代码中的wenet_server:latest
+
 构建客户端环境，同样的，下载英伟达的资源会花点时间。
 ```shell
 docker build --rm . -f Dockerfile/Dockerfile.client -t wenet_client:latest --network host

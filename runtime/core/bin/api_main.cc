@@ -25,6 +25,7 @@ DEFINE_string(model_dir, "", "model dir path");
 DEFINE_string(wav_path, "", "single wave path");
 DEFINE_string(context_path, "", "hot words path");
 DEFINE_string(user_context_path, "", "user hot words path");
+DEFINE_double(user_context_score, 3.0, "user hot words score");
 DEFINE_bool(enable_timestamp, false, "enable timestamps");
 DEFINE_bool(enable_itn, false, "enable inverse text normalization");
 DEFINE_int32(continuous_decoding, 1, "enable continuous_decoding");
@@ -43,6 +44,7 @@ void decode(std::string wav_path, void* decoder){
         wenet_add_user_context(decoder, context.c_str());
       }
   }
+  wenet_set_context_score(decoder, FLAGS_user_context_score);
   wenet_set_itn(decoder, FLAGS_enable_itn == true ? 1 : 0);
   wenet_set_timestamp(decoder, FLAGS_enable_timestamp == true ? 1 : 0);
   wenet_set_continuous_decoding(decoder, FLAGS_continuous_decoding);
@@ -56,8 +58,8 @@ void decode(std::string wav_path, void* decoder){
   }
 
   for (int i = 0; i < 10; i++) {
-    //0.4s per chunk. Return the final result when last is 1
-    int interval = (0.4 * 16000) * 2;
+    //0.3s per chunk. Return the final result when last is 1
+    int interval = (0.3 * 16000) * 2;
     int last = (data.size()*2)%interval;
     int segment = (data.size()*2) / interval + int(last!=0);
     for (int j = 0; j<segment; j++){

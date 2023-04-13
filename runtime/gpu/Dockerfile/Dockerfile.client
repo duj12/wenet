@@ -1,13 +1,12 @@
-FROM  nvcr.io/nvidia/tritonserver:22.03-py3-sdk
+FROM  nvcr.io/nvidia/tritonserver:23.01-py3-sdk
 LABEL maintainer="NVIDIA"
 LABEL repository="tritonserver"
 
-RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/3bf863cc.pub
-RUN apt-get update && apt-get install -y libsndfile1 openssh-server
+RUN apt-get update && apt-get install -y libsndfile1
 RUN pip3 install soundfile
 WORKDIR /workspace
 
 RUN echo root:pwd2GPU|chpasswd
-# 允许root用户使用密码通过ssh登录
+# 允许root用户使用密码通过ssh登录, 为了方便从远程ssh连接并调试docker环境
 RUN echo "PermitRootLogin yes" >> /etc/ssh/sshd_config
 RUN echo "PubkeyAuthentication yes" >> /etc/ssh/sshd_config
