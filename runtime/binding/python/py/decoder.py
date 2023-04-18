@@ -16,6 +16,8 @@
 from typing import List, Optional
 
 import _wenet
+from .vad import CRNN_VAD_STREAM
+import json, struct
 
 class ASRModel:
     def __init__(self, model_dir: str,
@@ -47,7 +49,7 @@ class Decoder:
                  enable_itn: bool = False,
                  context: Optional[List[str]] = None,
                  context_score: float = 3.0,
-                 continuous_decoding: bool = True,
+                 continuous_decoding: bool = False,
                  vad_trailing_silence: int = 1000, ):
         """ Init WeNet decoder
         Args:
@@ -72,6 +74,12 @@ class Decoder:
         if context is not None:
             self.add_context(context)
             self.set_context_score(context_score)
+
+        self.vad = None
+        if not continuous_decoding:
+            self.vad = CRNN_VAD_STREAM(
+                max_trailing_silence= vad_trailing_silence)
+
         self.set_continuous_decoding(continuous_decoding)
         self.set_vad_trailing_silence(vad_trailing_silence)
 
@@ -83,7 +91,7 @@ class Decoder:
         _wenet.wenet_free(self.d)
 
     def __version__(self):
-        return "1.3.1"
+        return "1.4.0"
 
     def set_log_level(self, level):
         """
@@ -101,6 +109,8 @@ class Decoder:
     def reset(self):
         """ Reset status for next decoding """
         _wenet.wenet_reset(self.d)
+        if not self.vad is None:
+            self.vad.reset_state()
 
     def init_decoder(self):
         """Init the user specific decoder"""
@@ -149,6 +159,8 @@ class Decoder:
 
     def set_vad_trailing_silence(self, vad_trailing_silence: int):
         _wenet.wenet_set_vad_trailing_silence(self.d, vad_trailing_silence)
+        if not self.vad is None:
+            self.vad.max_trailing_silence = vad_trailing_silence
 
     def decode(self, pcm: bytes, last: bool = True) -> str:
         """ Decode the input data
@@ -158,15 +170,33 @@ class Decoder:
             last: if it is the last package of the data
         """
         assert isinstance(pcm, bytes)
-        finish = 1 if last else 0
+
+        vad_state = 0
+        if not self.vad is None:
+            # convert bytes into float32
+            data = []
+            for i in range(0, len(pcm), 2):
+                value = struct.unpack('<h', pcm[i:i + 2])[0]
+                data.append(value / 32768.0)
+            *_, vad_state = self.vad.stream_asr_endpoint(data)
+
+        finish = 1 if (last or vad_state > 0) else 0
         _wenet.wenet_decode(self.d, pcm, len(pcm), finish)
         result = _wenet.wenet_get_result(self.d)
-        if last:  # Reset status for next decoding automatically
+        if finish:  # Reset status for next decoding automatically
             self.reset()
             if self._is_first_decoded == True:
                 self._is_warmed = True
             self._is_first_decoded = True
 
+        if not self.vad is None:
+            result = json.loads(result) if len(result) > 0 else None
+            if result and "vad_state" in result:
+                result["vad_state"] = vad_state
+            if vad_state == 1: # noise, sentence in result should be clear
+                if result and "nbest" in result:
+                    result["nbest"] = []
+            result = json.dumps(result) if result else ""
         return result
 
     def decode_wav(self, wav_file: str) -> str:

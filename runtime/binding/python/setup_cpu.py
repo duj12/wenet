@@ -66,7 +66,7 @@ package_name = "wenetruntime"
 
 setuptools.setup(
     name=package_name,
-    version='1.3.1',
+    version='1.4.0',
     author="dujing",
     author_email="dujing@xmov.ai",
     package_dir={
@@ -80,7 +80,7 @@ setuptools.setup(
     cmdclass={"build_ext": BuildExtension},
     zip_safe=False,
     setup_requires=["tqdm"],
-    install_requires=["torch", "tqdm"],
+    install_requires=["torch", "tqdm", "librosa", "numpy", "json"],
     classifiers=[
         "Programming Language :: C++",
         "Programming Language :: Python :: 3",

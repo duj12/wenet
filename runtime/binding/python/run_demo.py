@@ -24,7 +24,7 @@ def process_one_thread(t_number,
     '''
         Decoder对象为每个解码线程私有对象
         流式识别时Decoder类初始化的几个参数推荐设置值
-            continuous_decoding: 是否连续解码，音频流场景下必须设置为True
+            continuous_decoding: 如果设为False, 则使用额外的VAD模型，当前版本推荐设置为False
             context: 随模型初始化的热词列表，即hot_words.txt文件对应的list
             vad_trailing_silence: VAD拖尾静音长度的参数（默认是1000ms）
             nbest: 返回解码结果的数量，最大支持10个候选结果，一般都设置为1
@@ -38,7 +38,7 @@ def process_one_thread(t_number,
     print(f"Thread {t_number}： 创建Decoder，加载公有热词")
     decoder = Decoder(model,
                       context=common_context_list,
-                      continuous_decoding=True,
+                      continuous_decoding=False,
                       vad_trailing_silence=1000,
                       nbest=1,
                       enable_timestamp=False,
@@ -124,7 +124,7 @@ def process_wav_scp(model, wav_root, wav_scp,
     # 测试准确率
     decoder = Decoder(model,
                       context=common_context_list,
-                      continuous_decoding=True,
+                      continuous_decoding=False,
                       vad_trailing_silence=vad_silence_len,
                       nbest=1,
                       enable_timestamp=False,
@@ -214,7 +214,7 @@ if __name__ == "__main__":
         print("测试输入为空，强制中断解码的情况...")
         decoder = Decoder(model,
                           context=common_context_list,
-                          continuous_decoding=True,
+                          continuous_decoding=False,
                           vad_trailing_silence=1000,
                           nbest=1,
                           enable_timestamp=False,
@@ -227,7 +227,7 @@ if __name__ == "__main__":
     print("下面测试多线程加载不同热词...")
     t_count = 1
     case_count = 2
-    wav_files = ["../../resource/WAV/vad_debug/test2_1000ms.wav",
+    wav_files = ["../../resource/WAV/李佳琦直播20230303_01.wav",
                  "../../resource/WAV/10second_sil.wav"]
     user_context_lists = [["小黄车", "抓紧上车", "三二一上链接", "魔珐", "魔块"], ["魔法", "模块"]]
     vad_silences = [1000, 2500]
