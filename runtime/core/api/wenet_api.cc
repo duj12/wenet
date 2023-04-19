@@ -94,11 +94,6 @@ class ASRModel{
 class Recognizer {
  public:
   explicit Recognizer() {
-    // FeaturePipeline init
-    // Here we use frame_length=400 and frame_shift=100
-    feature_config_ = std::make_shared<wenet::FeaturePipelineConfig>(80, 16000, 400, 100);
-    feature_pipeline_ = std::make_shared<wenet::FeaturePipeline>(*feature_config_);
-
     // Context config init
     context_config_ = std::make_shared<wenet::ContextConfig>();
     decode_options_ = std::make_shared<wenet::DecodeOptions>();
@@ -118,6 +113,11 @@ class Recognizer {
 
   void InitDecoder() {
     CHECK(decoder_ == nullptr);   
+    // FeaturePipeline init
+    // Here we use frame_length=400 and frame_shift=100
+    feature_config_ = std::make_shared<wenet::FeaturePipelineConfig>(80, 16000, 400, frame_shift_);
+    feature_pipeline_ = std::make_shared<wenet::FeaturePipeline>(*feature_config_);
+
     // Optional init context graph
     if (context_.size() > 0 ) {
       std::vector<std::string> context; 
@@ -273,6 +273,8 @@ class Recognizer {
   void set_resource(std::shared_ptr<wenet::DecodeResource> resource){
     resource_ = resource;
   }
+
+  void set_frame_shift(int frame_shift){ frame_shift_ = frame_shift;  }
   
   bool use_lm_symbols_ = false;
 
@@ -294,6 +296,7 @@ class Recognizer {
   float context_score_;
   std::string language_ = "chs";
   bool continuous_decoding_ = false;
+  int frame_shift_ = 100;                  // frame shift in samples, 100 or 160
 };
 
 void* wenet_init_resource(const char* model_dir, int num_thread){
@@ -400,4 +403,9 @@ void wenet_reset_user_decoder(void* decoder){
 void wenet_set_itn(void* decoder, int flag){
   Recognizer* recognizer = reinterpret_cast<Recognizer*>(decoder);
   recognizer->set_itn(flag>0);
+}
+
+void wenet_set_frame_shift(void* decoder, int frame_shift){
+  Recognizer* recognizer = reinterpret_cast<Recognizer*>(decoder);
+  recognizer->set_frame_shift(frame_shift);
 }

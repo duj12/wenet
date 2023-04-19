@@ -50,19 +50,20 @@ class Decoder:
                  context: Optional[List[str]] = None,
                  context_score: float = 3.0,
                  continuous_decoding: bool = False,
-                 vad_trailing_silence: int = 1000, ):
+                 vad_trailing_silence: int = 1000, 
+                 fbank_frame_shift: int = 100, ):
         """ Init WeNet decoder
         Args:
             model: The ASR model resources
             lang: language type of the model
             nbest: nbest number for the final result
             enable_timestamp: whether to enable word level timestamp
-               for the final result
             context: context words
             context_score: bonus score when the context is matched
             continuous_decoding: enable countinous decoding or not
             vad_trailing_silence: the silence length in ms.
                 If the silence is longer than this, the audio will be cutted.
+            fbank_frame_shift: the frame shift in feature extraction. 
         """
         self.d = _wenet.wenet_init()
         _wenet.wenet_set_log_level(0)  # set the log level
@@ -82,6 +83,7 @@ class Decoder:
 
         self.set_continuous_decoding(continuous_decoding)
         self.set_vad_trailing_silence(vad_trailing_silence)
+        self.set_frame_shift(fbank_frame_shift)
 
         # some private members, for warmup telling
         self._is_first_decoded = False
@@ -95,7 +97,7 @@ class Decoder:
 
     def set_log_level(self, level):
         """
-        :param level: 0,1,2. normally increase to 2. higher with more log information
+        :param level: 0,1,2.... normally increase to 2. higher with more log information
         :return:
         """
         _wenet.wenet_set_log_level(level)  # set the log level
@@ -162,6 +164,9 @@ class Decoder:
         if not self.vad is None:
             self.vad.max_trailing_silence = vad_trailing_silence
 
+    def set_frame_shift(self, frame_shift: int):
+        _wenet.wenet_set_frame_shift(self.d, frame_shift)
+
     def decode(self, pcm: bytes, last: bool = True) -> str:
         """ Decode the input data
 
@@ -172,7 +177,8 @@ class Decoder:
         assert isinstance(pcm, bytes)
 
         vad_state = 0
-        if not self.vad is None:
+        # chunk is better to be longer than 0.2 second, for better vad performance
+        if not last and not self.vad is None and len(pcm)>=6400:
             # convert bytes into float32
             data = []
             for i in range(0, len(pcm), 2):

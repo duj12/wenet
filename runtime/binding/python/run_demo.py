@@ -29,6 +29,9 @@ def process_one_thread(t_number,
             vad_trailing_silence: VAD拖尾静音长度的参数（默认是1000ms）
             nbest: 返回解码结果的数量，最大支持10个候选结果，一般都设置为1
             enable_timestamp: 是否打开时间戳，为True时会返回每个字对应的时间戳
+            enable_itn: 是否打开文本反正则，为True时会将汉字转成对应的阿拉伯数字
+            fbank_frame_shift: 提取特征的帧率，为采样点数，取值为100表示特征提取帧率为160fps(16000/100)
+                实际在解码时做了4倍下采样，所以100对应的解码帧率为40fps(16000/100/4)，160对应25fps(16000/160/4)
 
         关于其他decoder的可设置参数，见py/decoder.py
         '''
@@ -43,6 +46,7 @@ def process_one_thread(t_number,
                       nbest=1,
                       enable_timestamp=False,
                       enable_itn = False,
+                      fbank_frame_shift = 100,
                       )
 
     ###################################################################
@@ -54,8 +58,8 @@ def process_one_thread(t_number,
 
     print(f"Thread {t_number}： 开始预热音频解码...")
     print(f"Thread {t_number}： 预热Decoder时，在调用decode方法时如果Decoder没初始化，会在内部自动初始化" )
-    # We suppose the wav is 16k, 16bits, and decode every 0.5 seconds
-    interval = int(0.5 * 16000) * 2
+    # We suppose the wav is 16k, 16bits, and decode every 0.3 seconds
+    interval = int(0.3 * 16000) * 2
     for _ in range(2):
         for i in range(0, len(wav), interval):
             last = False if i + interval < len(wav) else True
@@ -117,7 +121,7 @@ def process_wav_scp(model, wav_root, wav_scp,
                        vad_silence_len=1000,
                        result_file=None, 
                        label_file=None,
-                       wer_file = None):
+                       wer_file=None):
     """
     用于测试多个音频文件列表的解码准确率
     """
@@ -129,6 +133,7 @@ def process_wav_scp(model, wav_root, wav_scp,
                       nbest=1,
                       enable_timestamp=False,
                       enable_itn = False,
+                      fbank_frame_shift = 100,
                       )
     decoder.set_log_level(LOG_LEVEL)
     fout = None
@@ -147,8 +152,8 @@ def process_wav_scp(model, wav_root, wav_scp,
                 wav = fin.readframes(fin.getnframes())
             if fout:
                 fout.write(wav_name + " ")
-            # WAV is 16k, 16bits, and decode every 0.4 seconds(16 frames for 40 fps)
-            interval = int(0.4 * 16000) * 2
+            # WAV is 16k, 16bits, and decode every 0.3 seconds
+            interval = int(0.3 * 16000) * 2
             for i in range(0, len(wav), interval):
                 last = False if i + interval < len(wav) else True
                 chunk_wav = wav[i: min(i + interval, len(wav))]
@@ -208,7 +213,8 @@ if __name__ == "__main__":
                            common_context_list,
                            vad_silence_len,
                            result_file,
-                           label_file)
+                           label_file,
+                           wer_file)
         print("测试准确率完毕")
     if STOP_test:
         print("测试输入为空，强制中断解码的情况...")
@@ -219,6 +225,7 @@ if __name__ == "__main__":
                           nbest=1,
                           enable_timestamp=False,
                           enable_itn=False,
+                          fbank_frame_shift = 100,
                           )
         ans = decoder.decode(b'', True)
         print(ans)
@@ -227,7 +234,7 @@ if __name__ == "__main__":
     print("下面测试多线程加载不同热词...")
     t_count = 1
     case_count = 2
-    wav_files = ["../../resource/WAV/李佳琦直播20230303_01.wav",
+    wav_files = ["../../resource/WAV/10second_sil.wav",
                  "../../resource/WAV/10second_sil.wav"]
     user_context_lists = [["小黄车", "抓紧上车", "三二一上链接", "魔珐", "魔块"], ["魔法", "模块"]]
     vad_silences = [1000, 2500]

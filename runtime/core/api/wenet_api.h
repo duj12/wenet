@@ -142,7 +142,10 @@ void wenet_reset_user_decoder(void* decoder);
  */
 void wenet_set_itn(void* decoder, int flag);
 
-
+/*
+* set the frame shift, the unit is sample counts. default is 100
+*/
+void wenet_set_frame_shift(void* decoder, int frame_shift);
 
 #ifdef __cplusplus
 }

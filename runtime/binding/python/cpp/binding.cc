@@ -53,4 +53,7 @@ PYBIND11_MODULE(_wenet, m) {
 
   m.def("wenet_reset_user_decoder", &wenet_reset_user_decoder,
         "reset the decoder for specific user.");
+
+  m.def("wenet_set_frame_shift", &wenet_set_frame_shift,
+        "Set frame shift of fbank features, in sample counts.");
 }
