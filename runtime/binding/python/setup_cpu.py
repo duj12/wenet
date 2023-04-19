@@ -73,6 +73,7 @@ setuptools.setup(
         package_name: "py",
     },
     packages=[package_name],
+    include_package_data=True,
     url="https://git.xmov.ai/dujing/asr-online",
     long_description=read_long_description(),
     long_description_content_type="text/markdown",
@@ -80,7 +81,7 @@ setuptools.setup(
     cmdclass={"build_ext": BuildExtension},
     zip_safe=False,
     setup_requires=["tqdm"],
-    install_requires=["torch", "tqdm", "librosa", "numpy", "json"],
+    install_requires=["torch", "tqdm", "librosa", "numpy"],
     classifiers=[
         "Programming Language :: C++",
         "Programming Language :: Python :: 3",
