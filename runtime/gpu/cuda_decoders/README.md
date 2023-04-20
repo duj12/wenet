@@ -6,13 +6,29 @@ The triton model repository `model_repo_cuda_decoder` here, integrates the [CUDA
 ```sh
 # using docker image runtime/gpu/Dockerfile/Dockerfile.server
 docker pull soar97/triton-wenet:22.12
-docker run -it --rm --name "wenet_trt_test" --gpus all --shm-size 1g --net host soar97/triton-wenet:22.12
-# inside the docker container
-git clone https://github.com/wenet-e2e/wenet.git
-cd wenet/runtime/gpu/cuda_wfst_decoder
-# Use pip3 install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple if you encounter network issue
-pip3 install -r requirements.txt
 
+# pwd is runtime/gpu
+onnx_model_dir=$(pwd)/../resource/20211025_onnx_gpu
+TLG_dir=$(pwd)/../resource/ASR
+
+# cp the TLG.fst and words.fst to $PWD/cuda_decoders/model_repo_cuda_decoder/scoring
+cp -s $TLG_dir/TLG.fst $PWD/cuda_decoders/model_repo_cuda_decoder/scoring/1/lang/
+cp -s $TLG_dir/words.txt $PWD/cuda_decoders/model_repo_cuda_decoder/scoring/1/lang/
+
+# 200M的ONNX模型和520M的TLG,显存预计需要15G
+docker run -it --rm --name "wenet_trt_test" \
+       --gpus '"device=0"' --shm-size 1g \
+       -v $PWD/cuda_decoders:/ws/cuda_decoders \
+       -v $onnx_model_dir:/ws/onnx_model   \
+       --net host soar97/triton-wenet:22.12  
+    
+# inside the docker container
+# git clone https://github.com/wenet-e2e/wenet.git
+# cd wenet/runtime/gpu/cuda_wfst_decoder
+# Use pip3 install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple if you encounter network issue
+
+cd /ws/cuda_decoders 
+pip3 install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
 bash run.sh
 ```
 

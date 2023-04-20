@@ -14,11 +14,11 @@
 # limitations under the License.
 
 export CUDA_VISIBLE_DEVICES="0"
-stage=0
+stage=3
 stop_stage=3
 
 #<wenet_onnx_gpu_models>
-onnx_model_dir=$(pwd)/aishell_onnx
+onnx_model_dir=/ws/onnx_model
 DICT_PATH=$onnx_model_dir/words.txt
 
 # modify model parameters according to your own model
@@ -34,15 +34,15 @@ MAX_BATCH_SIZE=16
 MAX_BATCH_FOR_SCORING=16
 # Decoding parameters
 BEAM_SIZE=10
-DECODING_METHOD=tlg # ctc_greedy_search
+DECODING_METHOD=tlg_mbr # ctc_greedy_search
 
 
-model_repo_path=./model_repo_cuda_decoder
+model_repo_path=/ws/cuda_decoders/model_repo_cuda_decoder
 
 if [ ${stage} -le -1 ] && [ ${stop_stage} -ge -1 ]; then
    echo "export to onnx files"
-   #wget https://wenet-1256283475.cos.ap-shanghai.myqcloud.com/models/aishell/20211025_conformer_exp.tar.gz --no-check-certificate
-   #tar zxvf 20211025_conformer_exp.tar.gz
+   wget https://wenet-1256283475.cos.ap-shanghai.myqcloud.com/models/aishell/20211025_conformer_exp.tar.gz --no-check-certificate
+   tar zxvf 20211025_conformer_exp.tar.gz
    model_dir=$(pwd)/20211025_conformer_exp
    mkdir -p $onnx_model_dir
    cd ../../../
@@ -58,7 +58,19 @@ if [ ${stage} -le -1 ] && [ ${stop_stage} -ge -1 ]; then
    cd -
 fi
 
+
 if [ ${stage} -le 0 ] && [ ${stop_stage} -ge 0 ]; then
+     echo "build tlg"
+     # take aishell1 as example, you may skip it by using our pre-built TLG
+     # https://huggingface.co/yuekai/aishell1_tlg_essentials/tree/main/output
+     bash build_tlg.sh
+     tlg_dir=./data/lang_test
+     # mv TLG files to model_repo_path
+     cp $tlg_dir/TLG.fst $model_repo_path/scoring/1/lang
+     cp $tlg_dir/words.txt $model_repo_path/scoring/1/lang
+fi
+
+if [ ${stage} -le 1 ] && [ ${stop_stage} -ge 1 ]; then
      echo "auto gen config.pbtxt"
      dirs="encoder decoder feature_extractor scoring attention_rescoring"
      if [ ! -d $model_repo_path ]; then
@@ -70,7 +82,6 @@ if [ ${stage} -le 0 ] && [ ${stop_stage} -ge 0 ]; then
      do
           cp $model_repo_path/$dir/config.pbtxt.template $model_repo_path/$dir/config.pbtxt
 
-          sed -i "s|DICT_PATH|${DICT_PATH}|g" $model_repo_path/$dir/config.pbtxt
           sed -i "s/BEAM_SIZE/${BEAM_SIZE}/g" $model_repo_path/$dir/config.pbtxt
           sed -i "s/VOCAB_SIZE/${VOCAB_SIZE}/g" $model_repo_path/$dir/config.pbtxt
           sed -i "s/MAX_DELAY/${MAX_DELAY}/g" $model_repo_path/$dir/config.pbtxt
@@ -90,17 +101,6 @@ if [ ${stage} -le 0 ] && [ ${stop_stage} -ge 0 ]; then
 
 fi
 
-if [ ${stage} -le 1 ] && [ ${stop_stage} -ge 1 ]; then
-     echo "build tlg"
-     # take aishell1 as example, you may skip it by using our pre-built TLG
-     # https://huggingface.co/yuekai/aishell1_tlg_essentials/tree/main/output
-     bash build_tlg.sh
-     tlg_dir=./data/lang_test
-     # mv TLG files to model_repo_path
-     cp $tlg_dir/TLG.fst $model_repo_path/scoring/1/lang
-     cp $tlg_dir/words.txt $model_repo_path/scoring/1/lang
-fi
-
 if [ ${stage} -le 2 ] && [ ${stop_stage} -ge 2 ]; then
      echo "prepare files, you could skip it if you do it manually"
      mkdir -p $model_repo_path/encoder/1/
@@ -108,6 +108,8 @@ if [ ${stage} -le 2 ] && [ ${stop_stage} -ge 2 ]; then
 
      mkdir -p $model_repo_path/decoder/1/
      cp $onnx_model_dir/decoder_fp16.onnx $model_repo_path/decoder/1/
+
+     cp $onnx_model_dir/words.txt $model_repo_path/scoring/units.txt
 
      mkdir -p $model_repo_path/attention_rescoring/1/
 fi
