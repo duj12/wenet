@@ -39,11 +39,11 @@ parameters [
   },
   {
     key: "attention_rescoring",
-    value: { string_value: "0"}
+    value: { string_value: "1"}
   },
   {
     key: "bidecoder",
-    value: { string_value: "0"} # for attention rescoring decoder
+    value: { string_value: "1"} # for attention rescoring decoder
   },
   {
     key: "lm_path"

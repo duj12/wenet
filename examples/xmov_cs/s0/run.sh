@@ -397,3 +397,106 @@ python3 wenet/bin/export_onnx_cpu.py \
 
 
 fi
+
+# Optionally, you can decode with k2 hlg
+if [ ${stage} -le 10 ] && [ ${stop_stage} -ge 10 ]; then
+  lm=lm_250G_3gram+YouLing1_3gram_chars
+  if [ ! -f data/$lm/local/lm/lm.arpa ]; then
+    echo "Please run prepare dict and train lm in Stage 7" || exit 1;
+  fi
+
+  # 8.1 Build decoding HLG
+  required="data/$lm/local/hlg/HLG.pt data/$lm/local/hlg/words.txt"
+  for f in $required; do
+    if [ ! -f $f ]; then
+      echo "prepare HLG... $f"
+      tools/k2/make_hlg.sh data/$lm/local/dict/ data/$lm/local/lm/ data/$lm/local/hlg
+      break
+    fi
+  done
+
+  # 8.2 Decode using HLG
+  decoding_chunk_size=16
+  lm_scale=0.7
+  decoder_scale=0.1
+  r_decoder_scale=0.7
+  decode_modes=hlg_rescore
+  nj=1
+  CUDA_VISIBLE_DEVICES="6"
+  num_gpus=$(echo $CUDA_VISIBLE_DEVICES | awk -F "," '{print NF}')
+  test_sets="test_aishell "
+  for test in ${test_sets}; do
+
+  for mode in ${decode_modes}; do
+  {
+    test_dir="$dir/test_${mode}${decoding_chunk_size:+_chunk$decoding_chunk_size}${decode_suffix}/${test}"
+    mkdir -p $test_dir
+    mkdir -p $test_dir/split${nj}
+
+    # Step 1. Split wav.scp
+    split_scps=""
+    for n in $(seq ${nj}); do
+      split_scps="${split_scps} ${test_dir}/split${nj}/data.${n}.list"
+    done
+    scp=${feat_dir}_${en_modeling_unit}/${test}/data.list
+    tools/data/split_scp.pl ${scp} ${split_scps}
+
+    # Step 2. Parallel decoding
+    for n in $(seq ${nj}); do
+    {
+    gpu_id=$(echo $CUDA_VISIBLE_DEVICES | cut -d',' -f$[$idx+1])
+
+    if [[ $num_gpus -eq 0 ]]; then gpu_id=-1 ; fi
+    python wenet/bin/recognize.py --gpu $gpu_id \
+      --mode $mode \
+      --config $dir/train.yaml \
+      --data_type "raw" \
+      --test_data  "${test_dir}/split${nj}/data.${n}.list" \
+      --checkpoint $decode_checkpoint \
+      --beam_size 10 \
+      --batch_size 1 \
+      --penalty 0.0 \
+      --dict $dict \
+      --word data/$lm/local/hlg/words.txt \
+      --hlg data/$lm/local/hlg/HLG.pt \
+      --lm_scale $lm_scale \
+      --decoder_scale $decoder_scale \
+      --r_decoder_scale $r_decoder_scale \
+      ${decoding_chunk_size:+--decoding_chunk_size $decoding_chunk_size} \
+      --bpe_model ${bpecode} $decode_opts \
+      --result_file $test_dir/split${nj}/${n}.text_${en_modeling_unit} \
+      &> ${test_dir}/split${nj}/${n}.log
+    } &
+    ((idx+=1))
+    if [[ $idx -ge $num_gpus ]]; then
+      idx=0
+    fi
+    done
+    wait
+
+    # Step 3. Merge files
+    for n in $(seq ${nj}); do
+      cat ${test_dir}/split${nj}/${n}.text_${en_modeling_unit}
+    done > ${test_dir}/text_${en_modeling_unit}
+
+    if [ $en_modeling_unit == "bpe" ]; then
+      tools/spm_decode --model=${bpecode} --input_format=piece \
+      < $test_dir/text_${en_modeling_unit} | sed -e "s/▁/ /g" > $test_dir/text
+    else
+      cat $test_dir/text_${en_modeling_unit} \
+      | sed -e "s/▁/ /g" > $test_dir/text
+    fi
+    # Cer used to be consistent with kaldi & espnet
+#    python tools/compute-cer.py --char=1 --v=1 \
+#      ${feat_dir}_${en_modeling_unit}/${test}/text $test_dir/text > $test_dir/cer
+    python tools/compute-wer.py --char=1 --v=1 \
+      ${feat_dir}_${en_modeling_unit}/${test}/text $test_dir/text > $test_dir/wer
+  } &
+  done # for each decoding mode
+  wait
+
+  done  # for each test set
+
+
+fi
+

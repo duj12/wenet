@@ -19,6 +19,7 @@ bash run_streaming_small_model.sh
 Benchmark(small u2pp onnx) based on Aishell1 test set with server-A10 (16vCPU 60GB Memory)/client(4vCPU 16GB Memory), the total audio duration is 36108.919 seconds.
 
 (Note: using non-simulate-streaming mode)
+
 |concurrent-tasks | processing time(s) |
 |----------|--------------------|
 | 20 (onnx fp16)                | 123.796 |

@@ -14,16 +14,16 @@
 # limitations under the License.
 
 export CUDA_VISIBLE_DEVICES="0"
-stage=3
+stage=1
 stop_stage=3
 
 #<wenet_onnx_gpu_models>
 onnx_model_dir=/ws/onnx_model
-DICT_PATH=$onnx_model_dir/words.txt
+DICT_PATH=$onnx_model_dir/units.txt
 
 # modify model parameters according to your own model
-D_MODEL=256
-VOCAB_SIZE=4233
+D_MODEL=512         # Set to Your Model's Dimension
+VOCAB_SIZE=12000    # Set to Your Model's Units
 # Triton specific parameters
 # For more details, refer to
 # https://github.com/triton-inference-server/server/blob/main/docs/user_guide/model_configuration.md
@@ -37,7 +37,7 @@ BEAM_SIZE=10
 DECODING_METHOD=tlg_mbr # ctc_greedy_search
 
 
-model_repo_path=/ws/cuda_decoders/model_repo_cuda_decoder
+model_repo_path=/ws/model_repo/model_repo_cuda_decoder
 
 if [ ${stage} -le -1 ] && [ ${stop_stage} -ge -1 ]; then
    echo "export to onnx files"
@@ -109,7 +109,7 @@ if [ ${stage} -le 2 ] && [ ${stop_stage} -ge 2 ]; then
      mkdir -p $model_repo_path/decoder/1/
      cp $onnx_model_dir/decoder_fp16.onnx $model_repo_path/decoder/1/
 
-     cp $onnx_model_dir/words.txt $model_repo_path/scoring/units.txt
+     cp $onnx_model_dir/units.txt $model_repo_path/scoring/units.txt
 
      mkdir -p $model_repo_path/attention_rescoring/1/
 fi

@@ -14,7 +14,7 @@ Password: <Your Key>
 
 如果遇到pip下载出错，可以考虑切换源重新下载
 ```shell
-docker build --rm .  -f Dockerfile/Dockerfile.server -t wenet_server:latest --network host
+docker build --rm .  -f Dockerfile/Dockerfile.server -t wenet_server:22.12 --network host
 ```   
 设定onnx模型所在路径，所需资源联系dujing获取
 ```shell
@@ -26,16 +26,19 @@ docker run --rm --gpus '"device=0"' -it \
         -v $PWD/model_repo_stateful:/ws/model_repo \
         -v $onnx_model_dir:/ws/onnx_model \
         -p 8000:8000 -p 8001:8001 -p 8002:8002 \
-        --shm-size=1g --ulimit memlock=-1  wenet_server:latest \
+        --shm-size=1g --ulimit memlock=-1  wenet_server:22.12 \
         bash 
         
 bash /workspace/scripts/convert_start_server.sh
 ```
-如果遇到启动镜像失败，或者运行convert_start_server.sh失败，需要检查相关的报错信息，大概率是英伟达镜像自身的问题，建议直接拉取镜像维护者提供的稳定版本镜像：
+如果遇到启动镜像失败，或者运行convert_start_server.sh失败，需要检查相关的报错信息
+
+如果是加载模型的问题，可以首先下载官方提供的模型运行，
+如果是英伟达镜像自身的问题(目前测试过22.03和23.01都有问题，22.12是比较稳定的)，建议直接拉取镜像维护者提供的稳定版本镜像：
 ```shell
-docker pull soar96/triton-wenet:22.12
+docker pull soar97/triton-wenet:22.12
 ```
-然后重新启动镜像，用soar96/triton-wenet:22.12替换上述代码中的wenet_server:latest
+然后重新启动镜像，用soar97/triton-wenet:22.12替换上述代码中的wenet_server:22.12
 
 构建客户端环境，同样的，下载英伟达的资源会花点时间。
 ```shell
@@ -45,7 +48,7 @@ docker build --rm . -f Dockerfile/Dockerfile.client -t wenet_client:latest --net
 ```shell
 AUDIO_DATA=`pwd`/../resource/WAV
 ```
-映射路径并启动容器, 将宿主机端口10022映射到容器22端口，远程调试直接用宿主机10022端口即可
+映射路径并启动容器
 ```shell
 docker run --rm -ti --name wenet_client \
         --network host \
@@ -64,9 +67,9 @@ python3 myclient.py  \
 
 # 进行多个音频文件测试，多线程测试
 python3 client.py \
-        --wavscp=/ws/test_data/test_xmov_youling.scp  \
+        --wavscp=/ws/test_data/test_xmov_youling.scp0  \
         --data_dir=/ws/test_data \
-        --trans=/ws/test_data/test_xmov_youling.txt \
+        --trans=/ws/test_data/test_xmov_youling.txt0 \
         --model_name=streaming_wenet --streaming
 # 如果需要配合pycharm等IDE进行调试，则需要在docker内先指定一个端口(如5000，供远程ssh连接)，然后先重启一次ssh服务
 echo "Port 5000" >> /etc/ssh/sshd_config

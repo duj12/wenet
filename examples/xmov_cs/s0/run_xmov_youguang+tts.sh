@@ -45,7 +45,7 @@ dict=data/dict_$en_modeling_unit/lang_char.txt
 cmvn=false   # do not use cmvn
 debug=false
 num_workers=2
-dir=exp/u2_xmov_youguang
+dir=exp/u2_xmov_yg
 checkpoint=
 
 # use average_checkpoint will get better result

@@ -96,7 +96,7 @@ if __name__ == "__main__":
         "--frame_shift_ms",
         type=int,
         required=False,
-        default=10,
+        default=6.25,
         help="frame shift length",
     )
     parser.add_argument(

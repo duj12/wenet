@@ -43,6 +43,11 @@ input [
     name: "ctc_score"
     data_type: TYPE_FP16
     dims: [BEAM_SIZE]
+  },
+  {
+    name: "r_hyps_pad_sos_eos"
+    data_type: TYPE_INT64
+    dims: [BEAM_SIZE, -1]
   }
 ]
 
