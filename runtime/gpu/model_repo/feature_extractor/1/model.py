@@ -122,6 +122,9 @@ class TritonPythonModel:
                 total_waves.append(wav)
 
         features = self.feature_extractor(total_waves)
+        # print("\nfeatures:", features, "\n")
+        # print("\nfeature size", features[0].size(), "\n")
+
         idx = 0
         for b, l in zip(batch_count, batch_len):
             expect_feat_len = _kaldifeat.num_frames(l, self.opts.frame_opts)

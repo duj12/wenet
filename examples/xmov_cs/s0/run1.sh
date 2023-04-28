@@ -46,7 +46,7 @@ cmvn=true
 debug=false
 num_workers=2
 dir=exp/conformer_wavaug1
-checkpoint=$dir/steps_346000.pt
+checkpoint=$dir/steps_400000.pt
 
 # use average_checkpoint will get better result
 average_num=10

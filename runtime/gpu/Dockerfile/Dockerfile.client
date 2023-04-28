@@ -3,7 +3,7 @@ LABEL maintainer="NVIDIA"
 LABEL repository="tritonserver"
 
 RUN apt-get update && apt-get install -y libsndfile1 openssh-server
-RUN pip3 install soundfile
+RUN pip3 install soundfile -i https://pypi.tuna.tsinghua.edu.cn/simple
 WORKDIR /workspace
 
 RUN echo root:pwd2GPU|chpasswd

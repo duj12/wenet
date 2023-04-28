@@ -164,6 +164,12 @@ class TritonPythonModel:
 
             cur_b_log_probs = in_2.as_numpy()
             cur_b_log_probs_idx = in_3.as_numpy()
+
+            # print(f"\nencoder_out:\n{in_0.as_numpy()} \nencoder_out.shape:\n{in_0.as_numpy().shape} "
+            #       f"\nencoedr_out_size:\n{in_1.as_numpy()} \nencoder_out_size.shape:\n{in_1.as_numpy().shape} "
+            #       f"\nctc_beam_out:\n{in_2.as_numpy()} \nctc_beam_out.shape:\n{in_2.as_numpy().shape}"
+            #       f"\nctc_beam_out_size:\n{in_3.as_numpy()} \nctc_beam_out.shape:\n{in_3.as_numpy().shape}")
+
             for i in range(cur_batch):
                 cur_len = cur_b_lens[i]
                 cur_probs = cur_b_log_probs[i][0:cur_len, :].tolist()  # T X Beam

@@ -57,7 +57,7 @@ import numpy as np
 try:
     from swig_decoders import map_batch, \
         ctc_beam_search_decoder_batch, \
-        TrieVector, PathTrie
+        TrieVector, PathTrie, Scorer
 except ImportError:
     print('Please install ctc decoders first by refering to\n' +
           'https://github.com/Slyne/ctc_decoder.git')
@@ -101,6 +101,9 @@ def get_args():
     parser.add_argument('--fp16',
                         action='store_true',
                         help='whether to export fp16 model, default false')
+    parser.add_argument(
+        '--lm_path', required=False, help='arpa lm path', default=None, type=str
+    )
     args = parser.parse_args()
     print(args)
     return args
@@ -128,6 +131,7 @@ def main():
     test_conf['filter_conf']['min_output_input_ratio'] = 0
     test_conf['speed_perturb'] = False
     test_conf['spec_aug'] = False
+    test_conf['add_noise_rir'] = False
     test_conf['spec_trim'] = False
     test_conf['shuffle'] = False
     test_conf['sort'] = False
@@ -166,6 +170,11 @@ def main():
             char_dict[int(arr[1])] = arr[0]
             vocabulary.append(arr[0])
     eos = sos = len(char_dict) - 1
+
+    scorer = None
+    if args.lm_path:
+        scorer = Scorer(2, 1, args.lm_path, vocabulary)
+
     with torch.no_grad(), open(args.result_file, 'w') as fout:
         for _, batch in enumerate(test_data_loader):
             keys, feats, _, feats_lengths, _ = batch
@@ -213,7 +222,7 @@ def main():
                                                            batch_start,
                                                            beam_size,
                                                            num_processes,
-                                                           0, -2, 0.99999)
+                                                           0, -2, 0.99999, scorer)
                 if args.mode == 'ctc_prefix_beam_search':
                     hyps = []
                     for cand_hyps in score_hyps:

@@ -22,8 +22,20 @@ onnx_model_dir=/ws/onnx_model
 DICT_PATH=$onnx_model_dir/units.txt
 
 # modify model parameters according to your own model
-D_MODEL=512         # Set to Your Model's Dimension
+D_MODEL=256         # Set to Your Model's Dimension
 VOCAB_SIZE=12000    # Set to Your Model's Units
+FP16=true           # Set whether to use FP16 model
+
+if [ $FP16 == false ]; then
+  echo use FP32 model
+  model_suffix=".onnx"
+  data_type=TYPE_FP32
+else
+  echo use FP16 model
+  model_suffix="_fp16.onnx"
+  data_type=TYPE_FP16
+fi
+
 # Triton specific parameters
 # For more details, refer to
 # https://github.com/triton-inference-server/server/blob/main/docs/user_guide/model_configuration.md
@@ -81,7 +93,8 @@ if [ ${stage} -le 1 ] && [ ${stop_stage} -ge 1 ]; then
      for dir in $dirs
      do
           cp $model_repo_path/$dir/config.pbtxt.template $model_repo_path/$dir/config.pbtxt
-
+          sed -i "s/TYPE_FP16/${data_type}/g" $model_repo_path/$dir/config.pbtxt
+          sed -i "s/_fp16.onnx/${model_suffix}/g" $model_repo_path/$dir/config.pbtxt
           sed -i "s/BEAM_SIZE/${BEAM_SIZE}/g" $model_repo_path/$dir/config.pbtxt
           sed -i "s/VOCAB_SIZE/${VOCAB_SIZE}/g" $model_repo_path/$dir/config.pbtxt
           sed -i "s/MAX_DELAY/${MAX_DELAY}/g" $model_repo_path/$dir/config.pbtxt
@@ -104,10 +117,10 @@ fi
 if [ ${stage} -le 2 ] && [ ${stop_stage} -ge 2 ]; then
      echo "prepare files, you could skip it if you do it manually"
      mkdir -p $model_repo_path/encoder/1/
-     cp $onnx_model_dir/encoder_fp16.onnx $model_repo_path/encoder/1/
+     cp $onnx_model_dir/encoder$model_suffix $model_repo_path/encoder/1/
 
      mkdir -p $model_repo_path/decoder/1/
-     cp $onnx_model_dir/decoder_fp16.onnx $model_repo_path/decoder/1/
+     cp $onnx_model_dir/decoder$model_suffix $model_repo_path/decoder/1/
 
      cp $onnx_model_dir/units.txt $model_repo_path/scoring/units.txt
 

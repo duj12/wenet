@@ -87,16 +87,16 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--frame_length_ms",
-        type=int,
+        type=float,
         required=False,
         default=25,
         help="frame length",
     )
     parser.add_argument(
         "--frame_shift_ms",
-        type=int,
+        type=float,
         required=False,
-        default=6.25,
+        default=10,
         help="frame shift length",
     )
     parser.add_argument(

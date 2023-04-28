@@ -36,6 +36,7 @@ pip3 install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
 bash run.sh  # > run_cuda_decoder_server.log 2>&1 &
 
 # 然后按照gpu/README.md进行客户端的操作即可
+# 需要特别注意，由于是离线模型，所以client.py的输入要去掉"--model_name=streaming_wenet --streaming"
 ```
 
 ### TODO: Performance of Small Offline ASR Model using Different Decoders

@@ -44,6 +44,7 @@ class WenetModel(object):
 
         # language model
         lm_path = params.get("lm_path", None)
+        print(f"using arpa lm: {lm_path}")
         alpha, beta = params.get('alpha'), params.get('beta')
         self.scorer = None
         if os.path.exists(lm_path):
