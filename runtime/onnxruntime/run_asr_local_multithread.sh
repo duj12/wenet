@@ -66,7 +66,7 @@ warmup=1   #这个参数是在正式解码之前，先预热解码的音频数�
 CUDA_VISIBLE_DEVICES="0" ./build/bin/decoder_main \
     --warmup $warmup   \
     --thread_num $thread_num   \
-    --frame_shift 100 \
+    --frame_shift 160 \
     --chunk_size 16 ${wfst_decode_opts} ${decode_opts} \
     --ctc_weight 0.5 --rescoring_weight 1.0 \
     --reverse_weight 0.3 \

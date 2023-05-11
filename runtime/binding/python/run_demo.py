@@ -46,7 +46,7 @@ def process_one_thread(t_number,
                       nbest=1,
                       enable_timestamp=False,
                       enable_itn = False,
-                      fbank_frame_shift = 100,
+                      fbank_frame_shift = 160,
                       )
 
     ###################################################################
@@ -133,7 +133,7 @@ def process_wav_scp(model, wav_root, wav_scp,
                       nbest=1,
                       enable_timestamp=False,
                       enable_itn = False,
-                      fbank_frame_shift = 100,
+                      fbank_frame_shift = 160,
                       )
     decoder.set_log_level(LOG_LEVEL)
     fout = None
@@ -225,7 +225,7 @@ if __name__ == "__main__":
                           nbest=1,
                           enable_timestamp=False,
                           enable_itn=False,
-                          fbank_frame_shift = 100,
+                          fbank_frame_shift = 160,
                           )
         ans = decoder.decode(b'', True)
         print(ans)
@@ -234,7 +234,7 @@ if __name__ == "__main__":
     print("下面测试多线程加载不同热词...")
     t_count = 1
     case_count = 2
-    wav_files = ["../../resource/WAV/10second_sil.wav",
+    wav_files = ["../../resource/WAV/space.wav",
                  "../../resource/WAV/10second_sil.wav"]
     user_context_lists = [["小黄车", "抓紧上车", "三二一上链接", "魔珐", "魔块"], ["魔法", "模块"]]
     vad_silences = [1000, 2500]

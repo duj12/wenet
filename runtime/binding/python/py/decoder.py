@@ -51,7 +51,7 @@ class Decoder:
                  context_score: float = 3.0,
                  continuous_decoding: bool = False,
                  vad_trailing_silence: int = 1000, 
-                 fbank_frame_shift: int = 100, ):
+                 fbank_frame_shift: int = 160, ):
         """ Init WeNet decoder
         Args:
             model: The ASR model resources
@@ -93,7 +93,7 @@ class Decoder:
         _wenet.wenet_free(self.d)
 
     def __version__(self):
-        return "1.4.0"
+        return "1.4.1"
 
     def set_log_level(self, level):
         """

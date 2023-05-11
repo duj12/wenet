@@ -30,7 +30,7 @@ cmvn_sampling_divisor=100  # 20 means 5% of the training data to estimate cmvn
 train_set=train
 dev_set=dev
 
-test_sets="test_aishell test_net test_meeting test_conv test_libriclean  test_giga test_talcs test_htrs462 test_sjtcs test_xmov test_xmov_inter"
+test_sets="test_aishell test_net test_meeting test_conv test_libriclean  test_giga test_talcs test_htrs462 test_sjtcs test_xmov_meeting test_yl test_yg"
 
 # Optional train_config
 # 1. conf/train_transformer.yaml: Standard transformer
@@ -45,7 +45,7 @@ dict=data/dict_$en_modeling_unit/lang_char.txt
 cmvn=false   # do not use cmvn
 debug=false
 num_workers=2
-dir=exp/conformer_wavaug
+dir=exp/u2_512_wavaug
 checkpoint=
 
 # use average_checkpoint will get better result
@@ -313,19 +313,19 @@ if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
     tools/fst/make_tlg.sh data/local/lm data/local/lang data/lang_test || exit 1;
   fi
   # 7.4 Decoding with runtime
-  test_sets="test_aishell test_net test_meeting test_conv test_libriclean  test_giga test_talcs test_htrs462 test_sjtcs test_xmov test_xmov_inter"
-  test_sets="test_xmov_inter "
+  test_sets="test_aishell test_net test_meeting test_conv test_libriclean  test_giga test_talcs test_htrs462 test_sjtcs test_xmov_meeting test_yl test_yg"
+  test_sets="test_yl "
 
   model_suffix= #"_quant"
-  CUDA_VISIBLE_DEVICES="3"
+  CUDA_VISIBLE_DEVICES="6"
   num_gpus=$(echo $CUDA_VISIBLE_DEVICES | awk -F "," '{print NF}')
   thread_num=1
   warmup=1
-  nj=8 #$num_gpus
-  use_lm=1
+  nj=1 #$num_gpus
+  use_lm=0
   length_penalty=-3.0
   lm=lm_250G_4gram+asrtext_6gram_chars
-  context_path="data/hot_words.txt"
+  context_path= #"data/hot_words.txt"
   reverse_weight=0.3
   chunk_size=16
   if [ ! -z $CUDA_VISIBLE_DEVICES ]; then

@@ -50,7 +50,7 @@ fi
 
 CUDA_VISIBLE_DEVICES="0" ./build/bin/websocket_server_main \
     --port 10086 \
-    --frame_shift 100 \
+    --frame_shift 160 \
     --chunk_size 16 ${wfst_decode_opts} ${decode_opts} \
     --ctc_weight 0.5 --rescoring_weight 1.0 \
     --reverse_weight 0.3 \

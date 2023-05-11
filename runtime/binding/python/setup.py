@@ -66,7 +66,7 @@ package_name = "wenetruntime"
 
 setuptools.setup(
     name=package_name,
-    version='1.4.0',
+    version='1.4.1',
     author="dujing",
     author_email="dujing@xmov.ai",
     package_dir={
@@ -80,8 +80,8 @@ setuptools.setup(
     ext_modules=[cmake_extension("_wenet")],
     cmdclass={"build_ext": BuildExtension},
     zip_safe=False,
-    setup_requires=["tqdm"],
-    install_requires=["torch", "tqdm", "librosa", "numpy"],
+    setup_requires=[],
+    install_requires=["torch", "librosa", "numpy"],
     classifiers=[
         "Programming Language :: C++",
         "Programming Language :: Python :: 3",

@@ -4,7 +4,7 @@
 
 # Use this to control how many gpu you use, It's 1-gpu training if you specify
 # just 1gpu, otherwise it's is multiple gpu training based on DDP in pytorch
-export CUDA_VISIBLE_DEVICES="7"
+export CUDA_VISIBLE_DEVICES="6"
 stage=$1 # start from 0 if you need to start from data preparation
 stop_stage=$2
 num_gpus=$(echo $CUDA_VISIBLE_DEVICES | awk -F "," '{print NF}')
@@ -42,11 +42,11 @@ train_config=conf/train_u2++_conformer_youguang.yaml
 # Optional 1. bpe 2. char
 en_modeling_unit=bpe
 dict=data/dict_$en_modeling_unit/lang_char.txt
-cmvn=false   # do not use cmvn
+cmvn=true   # do not use cmvn
 debug=false
 num_workers=2
 dir=exp/u2_xmov_yg
-checkpoint=
+checkpoint=$dir/general.pt
 
 # use average_checkpoint will get better result
 average_num=10
@@ -122,7 +122,6 @@ fi
 if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
   # Training
   mkdir -p $dir
-  checkpoint=exp/conformer_wavaug/avg_10.pt   #继续通用领域模型训练
   INIT_FILE=$dir/ddp_init
   # You had better rm it manually before you start run.sh on first node.
   # rm -f $INIT_FILE # delete old one before starting
@@ -314,15 +313,15 @@ if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
     tools/fst/make_tlg.sh data/local/lm data/local/lang data/lang_test || exit 1;
   fi
   # 7.4 Decoding with runtime
-  test_sets="test_yg test_xmov_inter test_aishell test_net test_meeting test_conv test_libriclean  test_giga test_talcs test_htrs462 test_sjtcs test_xmov "
-  test_sets=" live_lijiaqi "
+  test_sets="test_aishell test_net test_meeting test_conv test_libriclean  test_giga test_talcs test_htrs462 test_sjtcs test_xmov_meeting test_yl test_yg"
+  #test_sets=" live_lijiaqi "
 
   model_suffix= #"_quant"
-  CUDA_VISIBLE_DEVICES="7"
+  CUDA_VISIBLE_DEVICES="4,5,6,7"
   num_gpus=$(echo $CUDA_VISIBLE_DEVICES | awk -F "," '{print NF}')
   thread_num=1
   warmup=0
-  nj=8  #$num_gpus
+  nj=16  #$num_gpus
   if [ ! -z $CUDA_VISIBLE_DEVICES ]; then
     decode_opts="--gpu_devices $CUDA_VISIBLE_DEVICES "$decode_opts
   else
@@ -347,7 +346,7 @@ if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
   lang_test=data/$lm/lang_test  # the path of TLG.fst and words.txt
   chunk_size=16
   ./tools/decode.sh --nj $nj --thread_per_device $thread_num --warmup $warmup \
-     --frame_shift 100 --beam 15.0 --lattice_beam 7.5 --max_active 7000 \
+     --frame_shift 160 --beam 15.0 --lattice_beam 7.5 --max_active 7000 \
     --blank_skip_thresh 0.98 --ctc_weight 0.5 --rescoring_weight 1.0 \
     --chunk_size $chunk_size $decode_opts --length_penalty ${length_penalty} \
     --fst_path $lang_test/TLG.fst \
@@ -359,7 +358,7 @@ if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
   echo "decode without TLG.fst.."
   chunk_size=16
   ./tools/decode.sh --nj $nj --thread_per_device $thread_num --warmup $warmup \
-    --frame_shift 100 --beam 15.0 --lattice_beam 7.5 --max_active 7000 \
+    --frame_shift 160 --beam 15.0 --lattice_beam 7.5 --max_active 7000 \
     --blank_skip_thresh 0.98 --ctc_weight 0.5  --rescoring_weight 1.0 \
     --chunk_size $chunk_size $decode_opts \
     data/${test}/wav.scp data/${test}/text $dir/final${model_suffix}.zip \

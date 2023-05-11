@@ -2,8 +2,8 @@
 # encoder related
 encoder: conformer
 encoder_conf:
-    output_size: 512    # dimension of attention
-    attention_heads: 8
+    output_size: 256    # dimension of attention
+    attention_heads: 4
     linear_units: 2048  # the number of units of position-wise feed forward
     num_blocks: 12      # the number of encoder blocks
     dropout_rate: 0.1
@@ -23,7 +23,7 @@ encoder_conf:
 # decoder related
 decoder: bitransformer
 decoder_conf:
-    attention_heads: 8
+    attention_heads: 4
     linear_units: 2048
     num_blocks: 3
     r_num_blocks: 3
@@ -60,15 +60,15 @@ dataset_conf:
         noise_db_high: 15
     fbank_conf:
         num_mel_bins: 80
-        frame_shift: 6.25   #fbank with 160Hz, 4-times subsample to 40Hz
+        frame_shift: 10   #fbank with 100Hz, 4-times subsample to 25Hz
         frame_length: 25
         dither: 1.0
     spec_aug: true
     spec_aug_conf:
         num_t_mask: 2
         num_f_mask: 2
-        max_t: 30
-        max_f: 20
+        max_t: 50
+        max_f: 10
     spec_sub: false
     spec_sub_conf:
         num_t_sub: 3
@@ -84,7 +84,7 @@ dataset_conf:
         sort_size: 500  # sort_size should be less than shuffle_size
     batch_conf:
         batch_type: 'static' # static or dynamic
-        batch_size: 16   #increase max_length, decrease batch
+        batch_size: 32   #increase max_length, decrease batch
 
 
 grad_clip: 5

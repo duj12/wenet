@@ -1,4 +1,5 @@
 // Copyright (c) 2021 Xingchen Song sxc19@mails.tsinghua.edu.cn
+//               2023 dujing
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -74,8 +75,8 @@ std::string PostProcessor::ProcessSymbols(const std::string& str) {
 
 std::string PostProcessor::Process(const std::string& str, bool finish) {
   std::string result;
-  result = ProcessSpace(str);
-  result = ProcessSymbols(result);
+  result = ProcessSymbols(str); //remove symbols with "<>" first
+  result = ProcessSpace(result);
   // TODO(xcsong): do itn/punctuation if finish == true
   // dujing: itn result will not align with time_stamp, so I consider to add itn in wenet_api.cc.
   // if (finish == true and opts_.itn){
