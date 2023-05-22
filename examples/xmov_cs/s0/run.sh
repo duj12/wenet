@@ -314,20 +314,20 @@ if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
   fi
   # 7.4 Decoding with runtime
   test_sets="test_aishell test_net test_meeting test_conv test_libriclean  test_giga test_talcs test_htrs462 test_sjtcs test_xmov_meeting test_yl test_yg"
-  test_sets="test_yl "
+  test_sets="test_4 "
 
   model_suffix= #"_quant"
-  CUDA_VISIBLE_DEVICES="6"
+  CUDA_VISIBLE_DEVICES="0,1,2,3"
   num_gpus=$(echo $CUDA_VISIBLE_DEVICES | awk -F "," '{print NF}')
   thread_num=1
   warmup=1
-  nj=1 #$num_gpus
+  nj=8 #$num_gpus
   use_lm=0
   length_penalty=-3.0
   lm=lm_250G_4gram+asrtext_6gram_chars
   context_path= #"data/hot_words.txt"
   reverse_weight=0.3
-  chunk_size=16
+  chunk_size=-1
   if [ ! -z $CUDA_VISIBLE_DEVICES ]; then
     decode_opts="--gpu_devices $CUDA_VISIBLE_DEVICES "$decode_opts
   else

@@ -142,6 +142,7 @@ python3 client.py --wavscp=/ws/test_data/data_aishell2/test/wav.scp --data_dir=/
 
 ## Precision Impact
 Some of you may be worried about whether fp16 will affect the final accuracy. We did several experiments and we may find the accuracy is acceptable.
+
 |Model | Dataset | Precision | CER |
 |------------|-----------|-----------|----------|
 |Aishell2-U2++ Conformer|Aishell2-TEST|FP16| 5.39%|

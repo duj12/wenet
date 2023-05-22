@@ -27,7 +27,7 @@ data_type=raw
 num_utts_per_shard=1000
 prefetch=100
 cmvn_sampling_divisor=100  # 20 means 5% of the training data to estimate cmvn
-train_set=train_yl+tts_v3
+train_set=train_yl+tts_v4
 dev_set=test_yl
 
 test_sets="test_yl"
@@ -45,8 +45,8 @@ dict=data/dict_$en_modeling_unit/lang_char.txt
 cmvn=true   # do not use cmvn
 debug=false
 num_workers=2
-dir=exp/u2_xmov_yl
-checkpoint=$dir/general.pt
+dir=/home/dujing/data/exp/u2_xmov_yl1
+checkpoint=exp/u2/avg_10.pt
 
 # use average_checkpoint will get better result
 average_num=10
@@ -140,7 +140,7 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
   world_size=`expr $num_gpus \* $num_nodes`
   echo "total gpus is: $world_size"
   cmvn_opts=
-  $cmvn && cmvn_opts="--cmvn ${dir}/global_cmvn"
+  $cmvn && cmvn_opts="--cmvn exp/u2/global_cmvn"
   # train.py will write $train_config to $dir/train.yaml with model input
   # and output dimension, train.yaml will be used for inference or model
   # export later
@@ -163,7 +163,7 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
       --ddp.world_size $world_size \
       --ddp.rank $rank \
       --ddp.dist_backend $dist_backend \
-      --num_workers 1 \
+      --num_workers 2 \
       $cmvn_opts \
       --pin_memory \
       --bpe_model ${bpecode} #\
