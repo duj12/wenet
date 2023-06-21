@@ -45,7 +45,7 @@ dict=data/dict_$en_modeling_unit/lang_char.txt
 cmvn=true
 debug=false
 num_workers=2
-dir=exp/u2
+dir=exp/u2_xmov_yl1
 checkpoint=
 
 # use average_checkpoint will get better result
@@ -315,19 +315,20 @@ if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
   fi
   # 7.4 Decoding with runtime
   test_sets="test_aishell test_net test_meeting test_conv test_libriclean  test_giga test_talcs test_htrs462 test_sjtcs test_xmov_meeting test_yl test_yg"
-  test_sets="test_yl"
+  test_sets="test_4 "
+  continuous_decoding=true
   model_suffix= #"_quant"
-  CUDA_VISIBLE_DEVICES="4"
+  CUDA_VISIBLE_DEVICES="5"
   num_gpus=$(echo $CUDA_VISIBLE_DEVICES | awk -F "," '{print NF}')
   thread_num=1
   warmup=0
-  nj=1 #$num_gpus
-  use_lm=0
+  nj=8 #$num_gpus
+  use_lm=1
   length_penalty=-3.0
-  lm=lm_250G_4gram+asrtext_6gram_chars
-  context_path= # "data/hot_words.txt"
+  lm=lm_250G_3gram+YouLing3_3gram_chars
+  context_path="data/hotwords.txt"
   reverse_weight=0.3
-  chunk_size=16
+  chunk_size=-1
   if [ ! -z $CUDA_VISIBLE_DEVICES ]; then
     decode_opts="--gpu_devices $CUDA_VISIBLE_DEVICES "$decode_opts
   else
@@ -350,7 +351,7 @@ if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
     --blank_skip_thresh 0.98 --ctc_weight 0.5 --rescoring_weight 1.0 \
     --reverse_weight $reverse_weight --chunk_size $chunk_size $decode_opts\
     --fst_path $lang_test/TLG.fst  --length_penalty ${length_penalty} \
-    --dict_path $lang_test/words.txt \
+    --dict_path $lang_test/words.txt --continuous_decoding $continuous_decoding \
     data/${test}/wav.scp data/${test}/text $dir/final${model_suffix}.zip \
     $dict "$dir/${lm}_with_runtime_${chunk_size}_penalty${length_penalty}_rw${reverse_weight}${decode_suffix}${model_suffix}/${test}"
   # Please see $dir/lm_with_runtime for wer
@@ -360,6 +361,7 @@ if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
     --frame_shift 160 --beam 15.0 --lattice_beam 7.5 --max_active 7000 \
     --blank_skip_thresh 0.98 --ctc_weight 0.5  --rescoring_weight 1.0 \
     --reverse_weight $reverse_weight --chunk_size $chunk_size $decode_opts \
+    --continuous_decoding $continuous_decoding \
     data/${test}/wav.scp data/${test}/text $dir/final${model_suffix}.zip \
     $dict  "$dir/runtime_${chunk_size}_rw${reverse_weight}${decode_suffix}${model_suffix}/${test}"
   # Please see $dir/runtime for wer

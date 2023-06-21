@@ -4,7 +4,7 @@
 
 # Use this to control how many gpu you use, It's 1-gpu training if you specify
 # just 1gpu, otherwise it's is multiple gpu training based on DDP in pytorch
-export CUDA_VISIBLE_DEVICES="6"
+export CUDA_VISIBLE_DEVICES="7"
 stage=$1 # start from 0 if you need to start from data preparation
 stop_stage=$2
 num_gpus=$(echo $CUDA_VISIBLE_DEVICES | awk -F "," '{print NF}')
@@ -27,10 +27,10 @@ data_type=raw
 num_utts_per_shard=1000
 prefetch=100
 cmvn_sampling_divisor=100  # 20 means 5% of the training data to estimate cmvn
-train_set=train_yl+tts_v4
-dev_set=test_yl
+train_set=denoise/train
+dev_set=denoise/test
 
-test_sets="test_yl"
+test_sets="denoise/test"
 
 # Optional train_config
 # 1. conf/train_transformer.yaml: Standard transformer
@@ -45,7 +45,7 @@ dict=data/dict_$en_modeling_unit/lang_char.txt
 cmvn=true   # do not use cmvn
 debug=false
 num_workers=2
-dir=exp/u2_xmov_yl1
+dir=exp/u2_denoise
 checkpoint=exp/u2/avg_10.pt
 
 # use average_checkpoint will get better result
@@ -319,14 +319,14 @@ if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
   fi
   # 7.4 Decoding with runtime
   test_sets="test_aishell test_net test_meeting test_conv test_libriclean  test_giga test_talcs test_htrs462 test_sjtcs test_xmov_meeting test_yl test_yg"
-  #test_sets=" "
+  test_sets="denoise/test_10 denoise/test_20 "
 
   model_suffix= #"_quant"
-  CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
+  CUDA_VISIBLE_DEVICES="7"
   num_gpus=$(echo $CUDA_VISIBLE_DEVICES | awk -F "," '{print NF}')
   thread_num=1
   warmup=0
-  nj=16  #$num_gpus
+  nj=2  #$num_gpus
   if [ ! -z $CUDA_VISIBLE_DEVICES ]; then
     decode_opts="--gpu_devices $CUDA_VISIBLE_DEVICES "$decode_opts
   else
