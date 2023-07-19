@@ -4,7 +4,7 @@
 
 # Use this to control how many gpu you use, It's 1-gpu training if you specify
 # just 1gpu, otherwise it's is multiple gpu training based on DDP in pytorch
-export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
+export CUDA_VISIBLE_DEVICES="7"
 stage=$1 # start from 0 if you need to start from data preparation
 stop_stage=$2
 num_gpus=$(echo $CUDA_VISIBLE_DEVICES | awk -F "," '{print NF}')
@@ -21,21 +21,21 @@ num_nodes=1
 # the third one set node_rank 2, and so on. Default 0
 node_rank=0
 
-data_type=shard
+data_type=raw
 num_utts_per_shard=1000
 prefetch=100
 cmvn_sampling_divisor=100  # 20 means 5% of the training data to estimate cmvn
-train_set=train
-dev_set=dev
+train_set=farfield/train_farA+nearYL
+dev_set=test_sets/test_ylfar
 
-test_sets="test_aishell test_net test_meeting test_conv test_libriclean  test_giga test_talcs test_htrs462 test_sjtcs test_xmov_meeting test_yl test_yg"
+test_sets="test_sets/test_ylfar "
 
 # Optional train_config
 # 1. conf/train_transformer.yaml: Standard transformer
 # 2. conf/train_conformer.yaml: Standard conformer
 # 3. conf/train_unified_conformer.yaml: Unified dynamic chunk causal conformer
 # 4. conf/train_unified_transformer.yaml: Unified dynamic chunk transformer
-train_config=conf/train_u2++_conformer_wavaug1.yaml
+train_config=conf/train_u2++_conformer_youling.yaml
 # English modeling unit
 # Optional 1. bpe 2. char
 en_modeling_unit=bpe
@@ -43,12 +43,12 @@ dict=data/dict_$en_modeling_unit/lang_char.txt
 cmvn=true
 debug=false
 num_workers=2
-dir=exp/u2
-checkpoint=
+dir=exp/u2_farA_nearYL
+checkpoint=exp/u2/avg_10.pt
 
 # use average_checkpoint will get better result
 average_num=10
-average_checkpoint=false
+average_checkpoint=true
 decode_checkpoint=$dir/avg_${average_num}.pt
 #decode_modes="ctc_greedy_search ctc_prefix_beam_search
 #              attention attention_rescoring"
@@ -66,7 +66,7 @@ if [ ${stage} -le 2 ] && [ ${stop_stage} -ge 2 ]; then
     shuf -n $sampling_size data/$train_set/wav.scp \
       > data/$train_set/wav.scp.sampled
     python3 tools/compute_cmvn_stats.py \
-    --num_workers 32 \
+    --num_workers 16 \
     --train_config $train_config \
     --in_scp data/$train_set/wav.scp.sampled \
     --out_cmvn data/$train_set/global_cmvn \
@@ -118,8 +118,7 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
   world_size=`expr $num_gpus \* $num_nodes`
   echo "total gpus is: $world_size"
   cmvn_opts=
-  $cmvn && cp data/$train_set/global_cmvn $dir
-  $cmvn && cmvn_opts="--cmvn ${dir}/global_cmvn"
+  $cmvn && cmvn_opts="--cmvn exp/u2/global_cmvn"
   # train.py will write $train_config to $dir/train.yaml with model input
   # and output dimension, train.yaml will be used for inference or model
   # export later
@@ -142,10 +141,13 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
       --ddp.world_size $world_size \
       --ddp.rank $rank \
       --ddp.dist_backend $dist_backend \
-      --num_workers $num_workers \
+      --num_workers 2 \
       $cmvn_opts \
       --pin_memory \
-      --bpe_model ${bpecode}
+      --bpe_model ${bpecode} #\
+#      --teacher_config  exp/conformer_wavaug/train.yaml \
+#      --teacher_checkpoint exp/conformer_wavaug/44.pt \
+#      --teacher_distill_weight 0.5
   } &
   done
   wait
@@ -375,106 +377,3 @@ python3 wenet/bin/export_onnx_cpu.py \
 
 
 fi
-
-# Optionally, you can decode with k2 hlg
-if [ ${stage} -le 10 ] && [ ${stop_stage} -ge 10 ]; then
-  lm=lm_250G_3gram+YouLing1_3gram_chars
-  if [ ! -f data/$lm/local/lm/lm.arpa ]; then
-    echo "Please run prepare dict and train lm in Stage 7" || exit 1;
-  fi
-
-  # 8.1 Build decoding HLG
-  required="data/$lm/local/hlg/HLG.pt data/$lm/local/hlg/words.txt"
-  for f in $required; do
-    if [ ! -f $f ]; then
-      echo "prepare HLG... $f"
-      tools/k2/make_hlg.sh data/$lm/local/dict/ data/$lm/local/lm/ data/$lm/local/hlg
-      break
-    fi
-  done
-
-  # 8.2 Decode using HLG
-  decoding_chunk_size=16
-  lm_scale=0.7
-  decoder_scale=0.1
-  r_decoder_scale=0.7
-  decode_modes=hlg_rescore
-  nj=1
-  CUDA_VISIBLE_DEVICES="6"
-  num_gpus=$(echo $CUDA_VISIBLE_DEVICES | awk -F "," '{print NF}')
-  test_sets="test_aishell "
-  for test in ${test_sets}; do
-
-  for mode in ${decode_modes}; do
-  {
-    test_dir="$dir/test_${mode}${decoding_chunk_size:+_chunk$decoding_chunk_size}${decode_suffix}/${test}"
-    mkdir -p $test_dir
-    mkdir -p $test_dir/split${nj}
-
-    # Step 1. Split wav.scp
-    split_scps=""
-    for n in $(seq ${nj}); do
-      split_scps="${split_scps} ${test_dir}/split${nj}/data.${n}.list"
-    done
-    scp=${feat_dir}_${en_modeling_unit}/${test}/data.list
-    tools/data/split_scp.pl ${scp} ${split_scps}
-
-    # Step 2. Parallel decoding
-    for n in $(seq ${nj}); do
-    {
-    gpu_id=$(echo $CUDA_VISIBLE_DEVICES | cut -d',' -f$[$idx+1])
-
-    if [[ $num_gpus -eq 0 ]]; then gpu_id=-1 ; fi
-    python wenet/bin/recognize.py --gpu $gpu_id \
-      --mode $mode \
-      --config $dir/train.yaml \
-      --data_type "raw" \
-      --test_data  "${test_dir}/split${nj}/data.${n}.list" \
-      --checkpoint $decode_checkpoint \
-      --beam_size 10 \
-      --batch_size 1 \
-      --penalty 0.0 \
-      --dict $dict \
-      --word data/$lm/local/hlg/words.txt \
-      --hlg data/$lm/local/hlg/HLG.pt \
-      --lm_scale $lm_scale \
-      --decoder_scale $decoder_scale \
-      --r_decoder_scale $r_decoder_scale \
-      ${decoding_chunk_size:+--decoding_chunk_size $decoding_chunk_size} \
-      --bpe_model ${bpecode} $decode_opts \
-      --result_file $test_dir/split${nj}/${n}.text_${en_modeling_unit} \
-      &> ${test_dir}/split${nj}/${n}.log
-    } &
-    ((idx+=1))
-    if [[ $idx -ge $num_gpus ]]; then
-      idx=0
-    fi
-    done
-    wait
-
-    # Step 3. Merge files
-    for n in $(seq ${nj}); do
-      cat ${test_dir}/split${nj}/${n}.text_${en_modeling_unit}
-    done > ${test_dir}/text_${en_modeling_unit}
-
-    if [ $en_modeling_unit == "bpe" ]; then
-      tools/spm_decode --model=${bpecode} --input_format=piece \
-      < $test_dir/text_${en_modeling_unit} | sed -e "s/▁/ /g" > $test_dir/text
-    else
-      cat $test_dir/text_${en_modeling_unit} \
-      | sed -e "s/▁/ /g" > $test_dir/text
-    fi
-    # Cer used to be consistent with kaldi & espnet
-#    python tools/compute-cer.py --char=1 --v=1 \
-#      ${feat_dir}_${en_modeling_unit}/${test}/text $test_dir/text > $test_dir/cer
-    python tools/compute-wer.py --char=1 --v=1 \
-      ${feat_dir}_${en_modeling_unit}/${test}/text $test_dir/text > $test_dir/wer
-  } &
-  done # for each decoding mode
-  wait
-
-  done  # for each test set
-
-
-fi
-
