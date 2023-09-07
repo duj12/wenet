@@ -1,1 +1,1 @@
---fst_path ../../examples/xmov_cs/s0/data/lang_test/TLG.fst --beam 15.0 --dict_path ../../examples/xmov_cs/s0/data/lang_test/words.txt --lattice_beam 7.5 --max_active 7000 --min_active 200 --acoustic_scale 1.0 --blank_skip_thresh 0.98 --length_penalty -4.0
+--fst_path ../resource/ASR/TLG.fst --beam 15.0 --dict_path ../resource/ASR/words.txt --lattice_beam 7.5 --max_active 7000 --min_active 200 --acoustic_scale 1.0 --blank_skip_thresh 0.98 --length_penalty -3.0

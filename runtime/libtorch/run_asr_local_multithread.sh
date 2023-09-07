@@ -11,7 +11,7 @@ model_path=../resource/ASR/final.zip    #端到端ASR识别模型文件路径，
 unit_path=../resource/ASR/units.txt   #端到端ASR识别模型对应的建模单元路径
 
 #设定测试集
-test_set=test_xmov_youling
+test_set=test_xmov_youguang
 wav_path=../resource/WAV/$test_set   #测试数据wav所在路径：需保证音频为16k采样率，单通道，16bit的wav文件
 wav_scp=../resource/WAV/$test_set.scp  #此文件格式为 “音频名称  音频所在路径”， 需确保音频路径能够被当前脚本所访问
 if [[ ! -f $wav_scp ]] ; then  #生成输入所需的scp格式文件
@@ -27,7 +27,7 @@ max_utterance_length=20000                #VAD最大截断长度，单位ms，�
 
 #可选资源：NgramLM， 提供fst_path具体路径，即可使用语言模型进行解码。
 lang_dir=../resource/ASR        #Ngram语言模型路径
-fst_path=$lang_dir/TLG.fst    #语言模型词图路径，默认名称都是TLG.fst，如果提供具体路径，则解码时会自动加载
+fst_path= # $lang_dir/TLG.fst    #语言模型词图路径，默认名称都是TLG.fst，如果提供具体路径，则解码时会自动加载
 dict_path=$lang_dir/words.txt  #语言模型词图对应词典的路径，默认名称为words.txt和TLG.fst放在同一个路径下
 
 #可选资源：热词列表，提供context_path，即可加载热词，并在解码中进行热词激励。
@@ -62,7 +62,7 @@ if [ ! -z $context_path ]; then
 fi
 
 
-warmup=1   #这个参数是在正式解码之前，先预热解码的音频数量，一般刚启动时第一次解码不能实时，5s音频预计需要20s才能解码完。
+warmup=2   #这个参数是在正式解码之前，先预热解码的音频数量，一般刚启动时第一次解码不能实时，5s音频预计需要20s才能解码完。
 CUDA_VISIBLE_DEVICES="0" ./build/bin/decoder_main \
     --warmup $warmup   \
     --thread_num $thread_num   \

@@ -84,10 +84,12 @@ for i in range(0, len(wav), interval):
 
 `ASRModel` 的参数为模型路径，以及使用的CPU核数（可使用全部CPU核）
 * `model_dir` (str): is the `Runtime Model` directory, it contains the following files.
-  必备资源
+  
+* 必备资源
   * `final.zip`: TorchScript ASR model. ASR模型，TorchScript格式。
   * `units.txt`: modeling units file. ASR模型的建模单元。
-  可选资源
+  
+* 可选资源
   * `TLG.fst`: optional, it means decoding with LM when `TLG.fst` is given. N-gram语言模型
   * `words.txt`: optional, word level symbol table for decoding with `TLG.fst`. 语言模型对应的词表。
   * `hotwords.txt`: optional,热词列表，一个词一行。

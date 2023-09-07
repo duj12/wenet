@@ -4,7 +4,7 @@
 
 # Use this to control how many gpu you use, It's 1-gpu training if you specify
 # just 1gpu, otherwise it's is multiple gpu training based on DDP in pytorch
-export CUDA_VISIBLE_DEVICES="7"
+export CUDA_VISIBLE_DEVICES="4,5"
 stage=$1 # start from 0 if you need to start from data preparation
 stop_stage=$2
 num_gpus=$(echo $CUDA_VISIBLE_DEVICES | awk -F "," '{print NF}')
@@ -25,17 +25,19 @@ data_type=raw
 num_utts_per_shard=1000
 prefetch=100
 cmvn_sampling_divisor=100  # 20 means 5% of the training data to estimate cmvn
-train_set=farfield/train_farA+nearYL
+train_set=youling/train_farYL+nearYL
 dev_set=test_sets/test_ylfar
 
-test_sets="test_sets/test_ylfar "
+test_sets=" test_sets/test_net test_sets/test_meeting \
+          test_sets/test_conv test_sets/test_libriclean  test_sets/test_giga \
+          test_sets/test_talcs test_sets/test_htrs462 test_sets/test_sjtcs  test_sets/test_yg"
 
 # Optional train_config
 # 1. conf/train_transformer.yaml: Standard transformer
 # 2. conf/train_conformer.yaml: Standard conformer
 # 3. conf/train_unified_conformer.yaml: Unified dynamic chunk causal conformer
 # 4. conf/train_unified_transformer.yaml: Unified dynamic chunk transformer
-train_config=conf/train_u2++_conformer_youling.yaml
+train_config=conf/train_u2++_conformer_ft.yaml
 # English modeling unit
 # Optional 1. bpe 2. char
 en_modeling_unit=bpe
@@ -43,7 +45,7 @@ dict=data/dict_$en_modeling_unit/lang_char.txt
 cmvn=true
 debug=false
 num_workers=2
-dir=exp/u2_farA_nearYL
+dir=exp/u2_farYL
 checkpoint=exp/u2/avg_10.pt
 
 # use average_checkpoint will get better result
@@ -298,7 +300,7 @@ if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
   model_suffix= #"_quant"
   thread_num=1
   warmup=0
-  nj=4 #$num_gpus
+  nj=8 #$num_gpus
   use_lm=1
   length_penalty=-3.0
   lm=ngram/lm_250G_3gram+YouLing3_3gram_chars

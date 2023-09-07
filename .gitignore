@@ -46,3 +46,5 @@ runtime/core/grpc/wenet.pb.h
 # Clangd files
 .cache
 compile_commands.json
+runtime/binding/python/dist/
+runtime/binding/python/fc_base/

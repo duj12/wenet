@@ -195,13 +195,13 @@ if __name__ == "__main__":
     #初始化模型
     model = None
     print("创建模型，为多个线程公有内存")
-    model = ASRModel("../../resource/ASR", num_thread=4)
+    model = ASRModel("../../resource/ASR", num_thread=1)
     print("创建模型，模型加载已完毕")
 
-    ACC_test = False
+    ACC_test = True
     STOP_test = False
     if ACC_test:
-        test_set='test_xmov_youling'
+        test_set='test_youling_farfield'
         print("下面先测试模型解码准确率...")
         wav_root = "../../resource/WAV"
         wav_scp = f"../../resource/WAV/{test_set}.scp0"
@@ -234,7 +234,7 @@ if __name__ == "__main__":
     print("下面测试多线程加载不同热词...")
     t_count = 1
     case_count = 2
-    wav_files = ["../../resource/WAV/space.wav",
+    wav_files = ["../../resource/WAV/warmup.wav",
                  "../../resource/WAV/10second_sil.wav"]
     user_context_lists = [["小黄车", "抓紧上车", "三二一上链接", "魔珐", "魔块"], ["魔法", "模块"]]
     vad_silences = [1000, 2500]

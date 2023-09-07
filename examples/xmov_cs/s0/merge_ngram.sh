@@ -2,24 +2,24 @@
 
 . ./path.sh || exit 1;
 
-general_ngram=data/lm_250G_3gram+YouLing1_3gram_chars/local/lm/lm.arpa
+general_ngram=data/ngram/lm_250G_3gram+YouLing3_3gram_chars/local/lm/lm.arpa
 
-domain_lm_name=lm_YouLing2
+domain_lm_name=ngram/lm_YouLing
 domain_ngram=data/$domain_lm_name/local/lm/lm.arpa
+domain_text_list=data/youling/train_farYL+nearYL/lm.list
 
-domain_text_list=data/train_yl+tts_v4/lm.list
-merged_lm_name=lm_250G_3gram+YouLing3_3gram_chars
+merged_lm_name=ngram/lm_250G_3gram+YouLing_3gram_chars
 merged_ngram=data/${merged_lm_name}/local/lm/lm.arpa
 
 dict=data/$domain_lm_name/local/dict/word.vocab
 dev_text=data/lm_dev.txt
 
 general_ngram_prune=2e-8
-domain_ngram_prune=1e-13
-merge_ngram_prune=1e-13
+domain_ngram_prune=1e-12
+merge_ngram_prune=1e-12
 
-general_order=6
-domain_order=6
+general_order=3
+domain_order=3
 merged_order=3
 
 merged_dir=`dirname $merged_ngram`
@@ -28,7 +28,7 @@ mkdir -p $merged_dir
 
 dict_path=`dirname $dict`
 
-stage=0
+stage=3
 
 #生成垂域语言模型
 if [ $stage -le -2 ]; then

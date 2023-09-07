@@ -4,7 +4,7 @@
 
 # Use this to control how many gpu you use, It's 1-gpu training if you specify
 # just 1gpu, otherwise it's is multiple gpu training based on DDP in pytorch
-export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
+export CUDA_VISIBLE_DEVICES="4,5"
 stage=$1 # start from 0 if you need to start from data preparation
 stop_stage=$2
 num_gpus=$(echo $CUDA_VISIBLE_DEVICES | awk -F "," '{print NF}')
@@ -297,7 +297,7 @@ if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
   thread_num=1
   warmup=0
   nj=4 #$num_gpus
-  use_lm=1
+  use_lm=0
   length_penalty=-3.0
   lm=ngram/lm_250G_3gram+YouLing3_3gram_chars
   context_path= #"data/hotwords.txt"
